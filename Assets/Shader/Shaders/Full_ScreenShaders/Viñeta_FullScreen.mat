@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: LigthVom
-  m_Shader: {fileID: 4800000, guid: 24c440504f2d249428dc2dd966d7fb52, type: 3}
+  m_Name: "Vi\xF1eta_FullScreen"
+  m_Shader: {fileID: -6465566751694194690, guid: 13c86ab974c143d4da1128265b8575f3, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -23,11 +23,7 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
-    - _CameraDepthTexture:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _NoiseTex:
+    - _SampleTexture2D_18f14bf4ff414b688f32a291f11436f1_Texture_1_Texture2D:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -45,35 +41,17 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ConeAngle: -16.49
-    - _DepthFadeDistance: -10.38
-    - _DepthFalloff: -5
-    - _DistanceFalloffPower: 3.67
-    - _EdgeFalloff: 8.51
-    - _EdgeSoftness: 1
-    - _Height: 2
-    - _Intensity: 3.66
-    - _NearClipDistance: 1.29
-    - _NoiseScale: -2.63
-    - _NoiseSpeed: -14.87
-    - _NoiseStrength: 0.25
-    - _Opacity: 1
-    - _QueueControl: 0
-    - _QueueOffset: 0
-    - _TintAffect: -4.88
+    - _Fullscreen_AlphaBlendOperation: 0
+    - _Fullscreen_BlendMode: 1
+    - _Fullscreen_ColorBlendOperation: 0
+    - _Fullscreen_DepthWrite: 0
+    - _Fullscreen_DstAlphaBlend: 10
+    - _Fullscreen_DstColorBlend: 10
+    - _Fullscreen_SrcAlphaBlend: 1
+    - _Fullscreen_SrcColorBlend: 5
+    - _Intesidad_Vi_eta: 10.14
+    - _Poder_Vi_eta: 3
+    - _voroniodvelocity: 1.5
     m_Colors:
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color_Vi_eta: {r: 0.01886791, g: 0.01886791, b: 0.01886791, a: 0}
   m_BuildTextureStacks: []
---- !u!114 &6099414267770360214
-MonoBehaviour:
-  m_ObjectHideFlags: 11
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  version: 7
