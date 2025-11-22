@@ -110,7 +110,8 @@ MonoBehaviour:
   - {fileID: 544679063122600148}
   - {fileID: -3005760844456818048}
   - {fileID: 946939019974314014}
-  m_RendererFeatureMap: 670a7dae84aeacacd4e003dab8168f07808a5fea6f6449d61e8886850534240d
+  - {fileID: 8872805440604555083}
+  m_RendererFeatureMap: 670a7dae84aeacacd4e003dab8168f07808a5fea6f6449d61e8886850534240d4b4763c08989227b
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -205,6 +206,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   passMaterial: {fileID: 2100000, guid: 713c87df8ec50314fb74716aba53f51f, type: 2}
+  injectionPoint: 550
+  requirements: 4
+  passIndex: 0
+--- !u!114 &8872805440604555083
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d613f08f173d4dd895bb07b3230baa9, type: 3}
+  m_Name: PuzzleFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  passMaterial: {fileID: 2100000, guid: ecb97633174af7a44a54b8f0be16f65e, type: 2}
   injectionPoint: 550
   requirements: 4
   passIndex: 0

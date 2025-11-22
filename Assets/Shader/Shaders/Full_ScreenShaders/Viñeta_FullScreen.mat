@@ -49,7 +49,7 @@ Material:
     - _Fullscreen_DstColorBlend: 10
     - _Fullscreen_SrcAlphaBlend: 1
     - _Fullscreen_SrcColorBlend: 5
-    - _Intesidad_Vi_eta: 10.14
+    - _Intesidad_Vi_eta: 10
     - _Poder_Vi_eta: 3
     - _voroniodvelocity: 1.5
     m_Colors:

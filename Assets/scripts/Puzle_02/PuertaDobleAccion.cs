@@ -41,13 +41,21 @@ public class PuertaDobleAccion : MonoBehaviour
     [Header("Audio")]
     [SerializeField] private bool playDoorSounds = true;
 
-    
     [Header("Outline Multiplayer")]
     [Tooltip("The color used when two or more players are in the trigger.")]
     [SerializeField] private Color cooperativeOutlineColor = Color.yellow;
     [SerializeField] private string outlineColorProperty = "_Outline_Color";
     [SerializeField] private string outlineScaleProperty = "_Outline_Scale";
     [SerializeField] private float activeOutlineScale = 0.0125f;
+
+    
+    [Header("Shader FX - Cooperative Stress")]
+    [Tooltip("Arrastra aqu el Material creado con tu SG_PuzzleStress (Mat_Puzzle)")]
+    [SerializeField] private Material puzzleFullscreenMat;
+    [SerializeField] private float stressDecaySpeed = 0.8f; 
+    [SerializeField] private float stressAddedPerHit = 0.4f; 
+    [SerializeField] private float baseTension = 0.15f; 
+    
 
     private List<PlayerIdentifier> activePlayers = new List<PlayerIdentifier>();
     private List<Renderer> doorRenderers = new List<Renderer>();
@@ -56,30 +64,28 @@ public class PuertaDobleAccion : MonoBehaviour
     private int outlineScaleID;
     private Color originalOutlineColor = Color.black;
 
-    
     private int golpesActuales = 0;
     private bool estaAbierta = false;
     private float anguloObjetivo = 0f;
     private float anguloActual = 0f;
     private bool isCoopMessageShown = false;
 
+    
+    private float currentStress = 0f;
+    private int _stressLevelID;
+
     private HashSet<GameObject> jugadoresEnTrigger = new HashSet<GameObject>();
     private Dictionary<GameObject, float> tiempoUltimoGolpe = new Dictionary<GameObject, float>();
     private Vector3 posicionOriginal;
 
-    
-    
-    
     [Header("UI Prompt Settings")]
     [SerializeField] private Canvas promptCanvas;
     [SerializeField] private TextMeshProUGUI promptText;
-    
 
     void Start()
     {
         if (puertaA == null || puertaB == null)
         {
-
             this.enabled = false;
             return;
         }
@@ -88,6 +94,13 @@ public class PuertaDobleAccion : MonoBehaviour
         anguloObjetivo = anguloActual;
 
         
+        if (puzzleFullscreenMat != null)
+        {
+            _stressLevelID = Shader.PropertyToID("_StressLevel");
+            
+            puzzleFullscreenMat.SetFloat(_stressLevelID, 0f);
+        }
+
         if (puertaA != null)
         {
             Renderer rendererA = puertaA.GetComponent<Renderer>();
@@ -107,7 +120,6 @@ public class PuertaDobleAccion : MonoBehaviour
             SetOutlineState(Color.black, 0.0f);
         }
 
-        
         if (promptCanvas != null)
         {
             promptCanvas.enabled = false;
@@ -116,6 +128,7 @@ public class PuertaDobleAccion : MonoBehaviour
 
     void Update()
     {
+        
         if (estaAbierta)
         {
             anguloActual = Mathf.MoveTowards(anguloActual, anguloObjetivo, velocidadApertura * Time.deltaTime);
@@ -123,12 +136,47 @@ public class PuertaDobleAccion : MonoBehaviour
             puertaA.localRotation = Quaternion.AngleAxis(anguloActual, ejeRotacion);
             puertaB.localRotation = Quaternion.AngleAxis(-anguloActual, ejeRotacion);
 
-            if (anguloActual == anguloObjetivo)
+            
+            if (puzzleFullscreenMat != null && currentStress > 0)
+            {
+                currentStress = Mathf.MoveTowards(currentStress, 0f, Time.deltaTime * 2f);
+                puzzleFullscreenMat.SetFloat(_stressLevelID, currentStress);
+            }
+
+            if (anguloActual == anguloObjetivo && currentStress <= 0)
                 this.enabled = false;
+        }
+        else
+        {
+            
+            HandleShaderUpdate();
         }
     }
 
-    
+    private void HandleShaderUpdate()
+    {
+        if (puzzleFullscreenMat == null) return;
+
+        
+        
+
+        float targetBase = (jugadoresEnTrigger.Count >= 2) ? baseTension : 0f;
+
+        
+        if (currentStress > targetBase)
+        {
+            currentStress -= Time.deltaTime * stressDecaySpeed;
+        }
+        else if (currentStress < targetBase)
+        {
+            
+            currentStress = Mathf.MoveTowards(currentStress, targetBase, Time.deltaTime);
+        }
+
+        
+        puzzleFullscreenMat.SetFloat(_stressLevelID, currentStress);
+    }
+
     private void SetOutlineState(Color color, float scale)
     {
         if (propertyBlock == null) return;
@@ -225,6 +273,12 @@ public class PuertaDobleAccion : MonoBehaviour
     private void GolpeExitoso(GameObject playerA, GameObject playerB)
     {
         golpesActuales++;
+
+        
+        
+        currentStress = Mathf.Clamp01(currentStress + stressAddedPerHit);
+        
+
         StartCoroutine(ShakeDoor());
         RequestCooperativeEffects(playerA);
         RequestCooperativeEffects(playerB);
@@ -236,8 +290,6 @@ public class PuertaDobleAccion : MonoBehaviour
                 AudioManager.Instance.PlaySFX(cfg.doorOpenSounds[0], transform.position, 0.7f, 0.9f);
         }
 
-
-
         if (golpesActuales >= golpesNecesarios)
             AbrirPuerta();
     }
@@ -245,6 +297,11 @@ public class PuertaDobleAccion : MonoBehaviour
     private void GolpeExitosoIndividual(GameObject jugador)
     {
         golpesActuales++;
+
+        
+        currentStress = Mathf.Clamp01(currentStress + stressAddedPerHit);
+        
+
         StartCoroutine(ShakeDoor());
         RequestCooperativeEffects(jugador);
 
@@ -254,8 +311,6 @@ public class PuertaDobleAccion : MonoBehaviour
             if (cfg.doorOpenSounds.Length > 0)
                 AudioManager.Instance.PlaySFX(cfg.doorOpenSounds[0], transform.position, 0.7f, 0.9f);
         }
-
-
 
         if (golpesActuales >= golpesNecesarios)
             AbrirPuerta();
@@ -275,14 +330,14 @@ public class PuertaDobleAccion : MonoBehaviour
         anguloObjetivo += 90f;
         SetOutlineState(Color.black, 0.0f);
 
+        
+
         if (playDoorSounds && AudioManager.Instance != null)
         {
             var cfg = AudioManager.Instance.GetAudioConfig();
             if (cfg.doorOpenSounds.Length > 0)
                 AudioManager.Instance.PlaySFX(cfg.doorOpenSounds[0], transform.position, 0.8f, 1f);
         }
-
-
 
         foreach (Collider col in GetComponents<Collider>())
             col.enabled = false;
@@ -331,7 +386,6 @@ public class PuertaDobleAccion : MonoBehaviour
                 if (uiController != null)
                     uiController.ShowNotification(needHelpMessage);
 
-                
                 if (promptCanvas != null && promptText != null)
                 {
                     promptCanvas.enabled = true;
@@ -342,6 +396,7 @@ public class PuertaDobleAccion : MonoBehaviour
             }
             else if (jugadoresEnTrigger.Count >= 2 && !isCoopMessageShown)
             {
+                
                 if (uiController != null)
                     uiController.ShowNotification(readyToActMessage);
 
@@ -376,7 +431,10 @@ public class PuertaDobleAccion : MonoBehaviour
             tiempoUltimoGolpe.Remove(player);
 
             if (jugadoresEnTrigger.Count < 2)
+            {
                 isCoopMessageShown = false;
+                
+            }
 
             if (jugadoresEnTrigger.Count == 1)
             {
