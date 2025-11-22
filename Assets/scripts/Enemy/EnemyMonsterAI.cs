@@ -18,7 +18,7 @@ public class EnemyMonsterAI : MonoBehaviour
 
     [Header("Parametros de movimiento")]
     public float lookRadius = 15f;
-    
+
     public float audioDetectionRadius = 10f;
     public float viewAngle = 90f;
     public float attackRange = 2.2f;
@@ -73,13 +73,23 @@ public class EnemyMonsterAI : MonoBehaviour
     private GameObject currentWallTarget = null;
 
     [Header("Optimizacion de Transiciones")]
-    
+
     public float transitionDelay = 0.15f;
     [Tooltip("Velocidad minima para considerar que esta en movimiento")]
     public float movementThreshold = 0.05f;
 
     [Header("Camera System")]
     public EnemyCameraController enemyCameraController;
+
+    
+    [Header("Shader FX - Roar")]
+    [Tooltip("Arrastra aqu el Material creado con SG_EnemyRoar (Mat_Roar)")]
+    public Material roarMaterial;
+
+    [Tooltip("Intensidad mxima de la distorsin.")]
+    [Range(0, 0.1f)]
+    public float maxRoarDistortion = 0.03f;
+    
 
     private float halfViewAngle;
     private bool isAttacking = false;
@@ -89,6 +99,11 @@ public class EnemyMonsterAI : MonoBehaviour
     private bool returningToCrawl = false;
     private bool hasAwakened = false;
     private bool isTransitioning = false;
+
+    
+    private int _roarIntensityID;
+    private int _isActiveID;
+    private Coroutine roarVisualCoroutine = null;
 
     private enum State { Sleeping, Patrol, Chasing, Attacking, Rising, Roaring, Dead, ReturningToCrawl }
     private State currentState = State.Sleeping;
@@ -127,9 +142,20 @@ public class EnemyMonsterAI : MonoBehaviour
 
         DisableAllHitboxes();
 
-        
+
         if (enemyCameraController == null)
             enemyCameraController = FindObjectOfType<EnemyCameraController>();
+
+        
+        if (roarMaterial != null)
+        {
+            _roarIntensityID = Shader.PropertyToID("_RoarIntensity");
+            _isActiveID = Shader.PropertyToID("_IsActive");
+
+            
+            roarMaterial.SetFloat(_isActiveID, 0f);
+            roarMaterial.SetFloat(_roarIntensityID, 0f);
+        }
     }
 
     void Update()
@@ -429,7 +455,7 @@ public class EnemyMonsterAI : MonoBehaviour
         ChangeState(State.Rising);
         isRising = true;
 
-        
+
         if (enemyCameraController != null)
             enemyCameraController.StartTrackingEnemy(transform);
 
@@ -446,6 +472,9 @@ public class EnemyMonsterAI : MonoBehaviour
 
         PlayRoarSound();
         anim.SetTrigger("Roar");
+
+        
+        
 
         yield return new WaitForSeconds(roarDuration);
 
@@ -621,7 +650,7 @@ public class EnemyMonsterAI : MonoBehaviour
         returningToCrawl = true;
         ChangeState(State.ReturningToCrawl);
 
-        
+
         if (enemyCameraController != null)
             enemyCameraController.StopTrackingEnemy();
 
@@ -832,9 +861,6 @@ public class EnemyMonsterAI : MonoBehaviour
         }
     }
 
-
-
-
     void OnDrawGizmosSelected()
     {
         halfViewAngle = viewAngle / 2f;
@@ -863,5 +889,63 @@ public class EnemyMonsterAI : MonoBehaviour
 
         Gizmos.color = Color.magenta;
         Gizmos.DrawWireSphere(transform.position, wallDetectionDistance);
+    }
+
+    
+    
+    
+    
+
+    
+    public void AE_StartRoarEffect()
+    {
+        if (roarMaterial == null) return;
+
+        
+        roarMaterial.SetFloat(_isActiveID, 1f);
+
+        
+        if (roarVisualCoroutine != null) StopCoroutine(roarVisualCoroutine);
+        roarVisualCoroutine = StartCoroutine(RoarIntensityRoutine());
+    }
+
+    
+    public void AE_StopRoarEffect()
+    {
+        if (roarMaterial == null) return;
+
+        
+        roarMaterial.SetFloat(_isActiveID, 0f);
+        roarMaterial.SetFloat(_roarIntensityID, 0f);
+
+        
+        if (roarVisualCoroutine != null)
+        {
+            StopCoroutine(roarVisualCoroutine);
+            roarVisualCoroutine = null;
+        }
+    }
+
+    
+    private IEnumerator RoarIntensityRoutine()
+    {
+        float timer = 0f;
+
+        while (true) 
+        {
+            timer += Time.deltaTime;
+
+            
+            
+            
+            float pulse = Mathf.Abs(Mathf.Sin(timer * 10f));
+
+            
+            float currentIntensity = pulse * maxRoarDistortion;
+
+            roarMaterial.SetFloat(_roarIntensityID, currentIntensity);
+
+            yield return null;
+        }
     }
 }
