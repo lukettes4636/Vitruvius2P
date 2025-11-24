@@ -37,9 +37,12 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AberrationAmount: 0.002
     - _IsActive: 0
-    - _NoiseScale: 8
+    - _NoiseScale: 2.5
     - _RoarIntensity: 0
-    - _RoarSpeed: 5
-    m_Colors: []
+    - _RoarSpeed: 4
+    - _VignetteStrength: 1
+    m_Colors:
+    - _VignetteColor: {r: 0.16037738, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
