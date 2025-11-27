@@ -56,8 +56,22 @@ public class MonitorPuzzleController : InteractiveObject
     private void Start()
     {
         
-        if (player1Canvas != null) player1Canvas.gameObject.SetActive(false);
-        if (player2Canvas != null) player2Canvas.gameObject.SetActive(false);
+        if (player1Canvas != null)
+        {
+            player1Canvas.gameObject.SetActive(false);
+            if (player1Canvas.gameObject.GetComponent<BillboardCanvas>() == null)
+                player1Canvas.gameObject.AddComponent<BillboardCanvas>();
+            if (player1Canvas.gameObject.GetComponent<CanvasScreenClamper>() == null)
+                player1Canvas.gameObject.AddComponent<CanvasScreenClamper>();
+        }
+        if (player2Canvas != null)
+        {
+            player2Canvas.gameObject.SetActive(false);
+            if (player2Canvas.gameObject.GetComponent<BillboardCanvas>() == null)
+                player2Canvas.gameObject.AddComponent<BillboardCanvas>();
+            if (player2Canvas.gameObject.GetComponent<CanvasScreenClamper>() == null)
+                player2Canvas.gameObject.AddComponent<CanvasScreenClamper>();
+        }
 
         
         

@@ -9,6 +9,8 @@ public class AudioConfig : ScriptableObject
     public AudioMixerGroup masterMixerGroup;
     public AudioMixerGroup musicMixerGroup;
     public AudioMixerGroup sfxMixerGroup;
+    public AudioMixerGroup ambientMixerGroup;
+    public AudioMixerGroup voiceMixerGroup;
 
     [Header("Footsteps")]
     public AudioClip[] player1Footsteps;

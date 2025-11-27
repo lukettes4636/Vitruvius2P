@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -50,12 +50,22 @@ public class KeypadDoorController : MonoBehaviour
         if (keypadCanvas != null)
         {
             uiManager = keypadCanvas.GetComponent<KeypadUIManager>();
-            
+
             keypadCanvas.SetActive(false);
+            if (keypadCanvas.GetComponent<BillboardCanvas>() == null)
+                keypadCanvas.AddComponent<BillboardCanvas>();
+            if (keypadCanvas.GetComponent<CanvasScreenClamper>() == null)
+                keypadCanvas.AddComponent<CanvasScreenClamper>();
         }
 
         if (interactPromptCanvas != null)
+        {
             interactPromptCanvas.SetActive(false);
+            if (interactPromptCanvas.GetComponent<BillboardCanvas>() == null)
+                interactPromptCanvas.AddComponent<BillboardCanvas>();
+            if (interactPromptCanvas.GetComponent<CanvasScreenClamper>() == null)
+                interactPromptCanvas.AddComponent<CanvasScreenClamper>();
+        }
 
         if (feedbackLight != null)
             feedbackLight.color = idleColor;
@@ -182,6 +192,7 @@ public class KeypadDoorController : MonoBehaviour
 
         
         keypadCanvas.SetActive(true);
+        PositionCanvasOnScreen(keypadCanvas);
 
         
         uiManager.Open(this, player.GetComponent<PlayerInput>());
@@ -203,6 +214,7 @@ public class KeypadDoorController : MonoBehaviour
 
         
         keypadCanvas.SetActive(true);
+        PositionCanvasOnScreen(keypadCanvas);
 
         
         uiManager.Open(this, player.GetComponent<PlayerInput>());
@@ -268,5 +280,20 @@ public class KeypadDoorController : MonoBehaviour
     {
         if (interactPromptCanvas != null)
             interactPromptCanvas.SetActive(state && !isActive && !isOpen);
+    }
+
+    private void PositionCanvasOnScreen(GameObject canvas)
+    {
+        if (canvas == null) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Transform t = canvas.transform;
+        Vector3 vp = cam.WorldToViewportPoint(t.position);
+        if (vp.z < 0f) vp.z = Mathf.Abs(vp.z);
+        float m = 0.05f;
+        vp.x = Mathf.Clamp(vp.x, m, 1f - m);
+        vp.y = Mathf.Clamp(vp.y, m, 1f - m);
+        Vector3 world = cam.ViewportToWorldPoint(vp);
+        t.position = world;
     }
 }

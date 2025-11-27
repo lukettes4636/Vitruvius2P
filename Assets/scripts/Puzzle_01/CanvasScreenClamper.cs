@@ -34,36 +34,15 @@ public class CanvasScreenClamper : MonoBehaviour
     {
         Camera cam = Camera.main;
         Vector3 currentPosition = transform.position;
-
-        
         Vector3 viewportPosition = cam.WorldToViewportPoint(currentPosition);
-
-        
-        if (viewportPosition.z < 0)
-            return;
-
-        
+        if (viewportPosition.z < 0) return;
         float minX = marginPercentage;
         float maxX = 1f - marginPercentage;
         float minY = marginPercentage;
         float maxY = 1f - marginPercentage;
-
-        
-        
         viewportPosition.x = Mathf.Clamp(viewportPosition.x, minX, maxX);
         viewportPosition.y = Mathf.Clamp(viewportPosition.y, minY, maxY);
-
-        
         Vector3 clampedWorldPosition = cam.ViewportToWorldPoint(viewportPosition);
-
-        
-        
-        
-        
-        transform.position = new Vector3(
-            currentPosition.x,      
-            clampedWorldPosition.y, 
-            currentPosition.z       
-        );
+        transform.position = clampedWorldPosition;
     }
 }

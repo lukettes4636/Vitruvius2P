@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.VFX;
@@ -448,6 +448,14 @@ public class MovJugador1 : MonoBehaviour
             GameObject item = itemCollider.gameObject;
             if (item.GetComponent<PuertaDobleAccion>() || item.GetComponent<ElectricBox>() || item.GetComponent<PuertaDobleConLlave>())
                 continue;
+
+            PickableItem pickable = item.GetComponent<PickableItem>();
+            if (pickable != null)
+            {
+                pickable.Collect(gameObject);
+                popupBillboard?.ShowMessage($"I found the {pickable.DisplayName}!", 2f);
+                return;
+            }
 
             KeyCard keyCard = item.GetComponent<KeyCard>();
             if (keyCard != null)
