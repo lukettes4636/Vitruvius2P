@@ -608,7 +608,7 @@ public class PuertaDobleAccion : MonoBehaviour
             ButtonIndicatorController controllerA = playerButtonMap[playerA].GetComponent<ButtonIndicatorController>();
             if (controllerA != null)
             {
-                controllerA.TriggerImpact(isFinalHit);
+                controllerA.TriggerShockwave(isFinalHit);
             }
         }
 
@@ -617,7 +617,7 @@ public class PuertaDobleAccion : MonoBehaviour
             ButtonIndicatorController controllerB = playerButtonMap[playerB].GetComponent<ButtonIndicatorController>();
             if (controllerB != null)
             {
-                controllerB.TriggerImpact(isFinalHit);
+                controllerB.TriggerShockwave(isFinalHit);
             }
         }
 
@@ -644,12 +644,13 @@ public class PuertaDobleAccion : MonoBehaviour
 
         PlayHitSuccessAudio();
 
+        
         if (playerButtonMap.ContainsKey(jugador))
         {
             ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
             if (controller != null)
             {
-                controller.TriggerImpact(isFinalHit);
+                controller.TriggerShockwave(isFinalHit);
             }
         }
 
@@ -784,14 +785,12 @@ public class PuertaDobleAccion : MonoBehaviour
                     assignedButton.SetActive(true);
                     playerButtonMap[player] = assignedButton;
 
+                    
                     ButtonIndicatorController controller = assignedButton.GetComponent<ButtonIndicatorController>();
                     if (controller != null && playerIdentifier != null)
                     {
                         controller.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
                     }
-
-                    
-                    UpdateAllButtonOrbitStates();
                 }
             }
 
@@ -881,9 +880,6 @@ public class PuertaDobleAccion : MonoBehaviour
 
             jugadoresEnTrigger.Remove(player);
 
-            
-            UpdateAllButtonOrbitStates();
-
             if (jugadoresEnTrigger.Count < 2)
             {
                 isCoopMessageShown = false;
@@ -916,26 +912,8 @@ public class PuertaDobleAccion : MonoBehaviour
 
     private void UpdateAllButtonOrbitStates()
     {
-        int playerCount = jugadoresEnTrigger.Count;
-
-        if (showDebugInfo)
-        {
-
-        }
-
-        foreach (var kvp in playerButtonMap)
-        {
-            ButtonIndicatorController ctrl = kvp.Value.GetComponent<ButtonIndicatorController>();
-            if (ctrl != null)
-            {
-                ctrl.SetOrbitState(playerCount);
-
-                if (showDebugInfo)
-                {
-
-                }
-            }
-        }
+        
+        
     }
 
     void OnDestroy()

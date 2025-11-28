@@ -7,33 +7,28 @@ public class ButtonIndicatorController : MonoBehaviour
     private Animator animator;
     private static readonly int PressHash = Animator.StringToHash("Press");
 
-    [Header("VFX Settings")]
-    [SerializeField] private VisualEffect orbitSingleVFX;
-    [SerializeField] private VisualEffect orbitDualVFX;
-    [SerializeField] private VisualEffect shockwaveRingVFX;
+    [Header("VFX - SOLO ONDA DE IMPACTO")]
+    [SerializeField] private VisualEffect shockwaveVFX;
 
     [Header("VFX Scale")]
-    [Tooltip("Escala del efecto de onda de impacto")]
-    [SerializeField] private float shockwaveScale = 3f;
-
-    [Header("VFX Properties")]
-    private static readonly int PlayerColorID = Shader.PropertyToID("PlayerColor");
+    [Tooltip("Tamao de la onda de impacto")]
+    [SerializeField] private float shockwaveBaseScale = 1f;
+    [SerializeField] private float shockwaveFinalScale = 5f;
 
     [Header("Color Settings")]
     private SpriteRenderer spriteRenderer;
     private UnityEngine.UI.Image imageComponent;
 
-    [Header("Pulse Effect (Optional)")]
+    [Header("Pulse Effect")]
     [SerializeField] private bool enablePulse = true;
     [SerializeField] private float pulseSpeed = 2f;
     [SerializeField] private float pulseAmount = 0.1f;
 
     [Header("Debug")]
-    [SerializeField] private bool showDebugLogs = false;
+    [SerializeField] private bool showDebug = false;
 
     private Color currentPlayerColor = Color.white;
     private Vector3 originalScale;
-    private int currentOrbitState = -1; 
 
     void Awake()
     {
@@ -55,12 +50,14 @@ public class ButtonIndicatorController : MonoBehaviour
     void Start()
     {
         
-        StopAllVFX();
+        if (shockwaveVFX != null)
+        {
+            shockwaveVFX.Stop();
+        }
 
-        if (showDebugLogs)
+        if (showDebug)
         {
 
-            LogVFXStatus();
         }
     }
 
@@ -82,17 +79,21 @@ public class ButtonIndicatorController : MonoBehaviour
         {
             animator.SetTrigger(PressHash);
         }
+
+        if (showDebug)
+        {
+
+        }
     }
 
     
     
     
-    
-    public void TriggerImpact(bool isFinalHit = false)
+    public void TriggerShockwave(bool isFinalHit = false)
     {
-        if (shockwaveRingVFX == null)
+        if (shockwaveVFX == null)
         {
-            if (showDebugLogs)
+            if (showDebug)
             {
 
             }
@@ -100,16 +101,23 @@ public class ButtonIndicatorController : MonoBehaviour
         }
 
         
-        float finalScale = isFinalHit ? shockwaveScale * 1.5f : shockwaveScale;
-
-        Transform vfxTransform = shockwaveRingVFX.transform;
-        vfxTransform.localScale = Vector3.one * finalScale;
+        shockwaveVFX.Stop();
 
         
-        shockwaveRingVFX.Stop();
-        shockwaveRingVFX.Play();
+        float targetScale = isFinalHit ? shockwaveFinalScale * 1.5f : shockwaveFinalScale;
+        shockwaveVFX.transform.localScale = Vector3.one * targetScale;
 
-        if (showDebugLogs)
+        
+        if (shockwaveVFX.HasVector4("PlayerColor"))
+        {
+            shockwaveVFX.SetVector4("PlayerColor", currentPlayerColor);
+        }
+
+        
+        shockwaveVFX.Reinit();
+        shockwaveVFX.Play();
+
+        if (showDebug)
         {
 
         }
@@ -133,101 +141,15 @@ public class ButtonIndicatorController : MonoBehaviour
         }
 
         
-        SetVFXColor(orbitSingleVFX, playerColor);
-        SetVFXColor(orbitDualVFX, playerColor);
-        SetVFXColor(shockwaveRingVFX, playerColor);
+        if (shockwaveVFX != null && shockwaveVFX.HasVector4("PlayerColor"))
+        {
+            shockwaveVFX.SetVector4("PlayerColor", playerColor);
+        }
 
-        if (showDebugLogs)
+        if (showDebug)
         {
 
         }
-    }
-
-    private void SetVFXColor(VisualEffect vfx, Color color)
-    {
-        if (vfx == null) return;
-
-        if (vfx.HasVector4(PlayerColorID))
-        {
-            vfx.SetVector4(PlayerColorID, color);
-        }
-        else if (showDebugLogs)
-        {
-
-        }
-    }
-
-    
-    
-    
-    
-    public void SetOrbitState(int playerCount)
-    {
-        
-        if (currentOrbitState == playerCount)
-        {
-            return;
-        }
-
-        currentOrbitState = playerCount;
-
-        if (showDebugLogs)
-        {
-
-        }
-
-        switch (playerCount)
-        {
-            case 0:
-                
-                StopOrbitVFX();
-
-                break;
-
-            case 1:
-                
-                if (orbitDualVFX != null)
-                {
-                    orbitDualVFX.Stop();
-
-                }
-
-                if (orbitSingleVFX != null)
-                {
-                    orbitSingleVFX.Reinit();
-                    orbitSingleVFX.Play();
-
-                }
-                break;
-
-            default:
-                
-                if (orbitSingleVFX != null)
-                {
-                    orbitSingleVFX.Stop();
-
-                }
-
-                if (orbitDualVFX != null)
-                {
-                    orbitDualVFX.Reinit();
-                    orbitDualVFX.Play();
-
-                }
-                break;
-        }
-    }
-
-    private void StopOrbitVFX()
-    {
-        if (orbitSingleVFX != null) orbitSingleVFX.Stop();
-        if (orbitDualVFX != null) orbitDualVFX.Stop();
-    }
-
-    private void StopAllVFX()
-    {
-        StopOrbitVFX();
-        if (shockwaveRingVFX != null) shockwaveRingVFX.Stop();
     }
 
     
@@ -237,43 +159,24 @@ public class ButtonIndicatorController : MonoBehaviour
     {
         if (spriteRenderer != null)
         {
-            Color currentColor = spriteRenderer.color;
-            currentColor.a = Mathf.Clamp01(alpha);
-            spriteRenderer.color = currentColor;
+            Color c = spriteRenderer.color;
+            c.a = Mathf.Clamp01(alpha);
+            spriteRenderer.color = c;
         }
         else if (imageComponent != null)
         {
-            Color currentColor = imageComponent.color;
-            currentColor.a = Mathf.Clamp01(alpha);
-            imageComponent.color = currentColor;
+            Color c = imageComponent.color;
+            c.a = Mathf.Clamp01(alpha);
+            imageComponent.color = c;
         }
-    }
-
-    private void LogVFXStatus()
-    {
-
-
-
-
     }
 
     void OnDisable()
     {
         
-        StopAllVFX();
-        currentOrbitState = -1; 
-
-        if (showDebugLogs)
+        if (shockwaveVFX != null)
         {
-
-        }
-    }
-
-    void OnEnable()
-    {
-        if (showDebugLogs)
-        {
-
+            shockwaveVFX.Stop();
         }
     }
 }
