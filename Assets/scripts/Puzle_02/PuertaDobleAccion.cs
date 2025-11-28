@@ -56,6 +56,9 @@ public class PuertaDobleAccion : MonoBehaviour
 
     [Header("Button Indicators")]
     [SerializeField] private GameObject buttonIndicatorPrefab;
+    [SerializeField] private Vector3 buttonOffsetFromPlayer = new Vector3(0f, 2.5f, 0f);
+    [Tooltip("Si est activado, los botones siguen a cada jugador. Si no, usan posiciones fijas.")]
+    [SerializeField] private bool buttonFollowsPlayer = true;
     [SerializeField] private Vector3 player1ButtonOffset = new Vector3(-1f, 2f, 0f);
     [SerializeField] private Vector3 player2ButtonOffset = new Vector3(1f, 2f, 0f);
     [SerializeField] private float buttonAnimDuration = 0.3f;
@@ -174,21 +177,26 @@ public class PuertaDobleAccion : MonoBehaviour
         
         if (buttonIndicatorPrefab != null)
         {
-            buttonIndicator1 = Instantiate(buttonIndicatorPrefab, transform.position + player1ButtonOffset, Quaternion.identity, transform);
-            buttonIndicator1.SetActive(false);
-
-            if (useBillboardEffect)
+            
+            if (!buttonFollowsPlayer)
             {
-                AddBillboardEffect(buttonIndicator1);
-            }
+                buttonIndicator1 = Instantiate(buttonIndicatorPrefab, transform.position + player1ButtonOffset, Quaternion.identity, transform);
+                buttonIndicator1.SetActive(false);
 
-            buttonIndicator2 = Instantiate(buttonIndicatorPrefab, transform.position + player2ButtonOffset, Quaternion.identity, transform);
-            buttonIndicator2.SetActive(false);
+                if (useBillboardEffect)
+                {
+                    AddBillboardEffect(buttonIndicator1);
+                }
 
-            if (useBillboardEffect)
-            {
-                AddBillboardEffect(buttonIndicator2);
+                buttonIndicator2 = Instantiate(buttonIndicatorPrefab, transform.position + player2ButtonOffset, Quaternion.identity, transform);
+                buttonIndicator2.SetActive(false);
+
+                if (useBillboardEffect)
+                {
+                    AddBillboardEffect(buttonIndicator2);
+                }
             }
+            
         }
     }
 
@@ -213,6 +221,26 @@ public class PuertaDobleAccion : MonoBehaviour
         else
         {
             HandleShaderUpdate();
+
+            
+            if (buttonFollowsPlayer)
+            {
+                UpdateButtonPositions();
+            }
+        }
+    }
+
+    private void UpdateButtonPositions()
+    {
+        foreach (var kvp in playerButtonMap)
+        {
+            GameObject player = kvp.Key;
+            GameObject button = kvp.Value;
+
+            if (player != null && button != null && button.activeSelf)
+            {
+                button.transform.position = player.transform.position + buttonOffsetFromPlayer;
+            }
         }
     }
 
@@ -580,7 +608,7 @@ public class PuertaDobleAccion : MonoBehaviour
             ButtonIndicatorController controllerA = playerButtonMap[playerA].GetComponent<ButtonIndicatorController>();
             if (controllerA != null)
             {
-                controllerA.TriggerImpact(true, isFinalHit);
+                controllerA.TriggerImpact(isFinalHit);
             }
         }
 
@@ -589,7 +617,7 @@ public class PuertaDobleAccion : MonoBehaviour
             ButtonIndicatorController controllerB = playerButtonMap[playerB].GetComponent<ButtonIndicatorController>();
             if (controllerB != null)
             {
-                controllerB.TriggerImpact(true, isFinalHit);
+                controllerB.TriggerImpact(isFinalHit);
             }
         }
 
@@ -621,7 +649,7 @@ public class PuertaDobleAccion : MonoBehaviour
             ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
             if (controller != null)
             {
-                controller.TriggerImpact(true, isFinalHit);
+                controller.TriggerImpact(isFinalHit);
             }
         }
 
@@ -715,38 +743,55 @@ public class PuertaDobleAccion : MonoBehaviour
             
             if (buttonIndicatorPrefab != null)
             {
-                if (jugadoresEnTrigger.Count == 1)
-                {
-                    buttonIndicator1.SetActive(true);
-                    playerButtonMap[player] = buttonIndicator1;
+                GameObject assignedButton = null;
 
-                    ButtonIndicatorController controller = buttonIndicator1.GetComponent<ButtonIndicatorController>();
+                if (buttonFollowsPlayer)
+                {
+                    
+                    assignedButton = Instantiate(buttonIndicatorPrefab, player.transform.position + buttonOffsetFromPlayer, Quaternion.identity);
+                    assignedButton.name = $"ButtonIndicator_{player.name}";
+
+                    if (useBillboardEffect)
+                    {
+                        AddBillboardEffect(assignedButton);
+                    }
+                }
+                else
+                {
+                    
+                    if (jugadoresEnTrigger.Count == 1)
+                    {
+                        assignedButton = buttonIndicator1;
+                    }
+                    else if (jugadoresEnTrigger.Count == 2)
+                    {
+                        
+                        bool button1Assigned = false;
+                        foreach (var kvp in playerButtonMap)
+                        {
+                            if (kvp.Value == buttonIndicator1)
+                            {
+                                button1Assigned = true;
+                                break;
+                            }
+                        }
+                        assignedButton = button1Assigned ? buttonIndicator2 : buttonIndicator1;
+                    }
+                }
+
+                if (assignedButton != null)
+                {
+                    assignedButton.SetActive(true);
+                    playerButtonMap[player] = assignedButton;
+
+                    ButtonIndicatorController controller = assignedButton.GetComponent<ButtonIndicatorController>();
                     if (controller != null && playerIdentifier != null)
                     {
                         controller.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
-                        controller.SetOrbitState(1);
-                    }
-                }
-                else if (jugadoresEnTrigger.Count == 2)
-                {
-                    buttonIndicator2.SetActive(true);
-                    playerButtonMap[player] = buttonIndicator2;
-
-                    ButtonIndicatorController controller2 = buttonIndicator2.GetComponent<ButtonIndicatorController>();
-                    if (controller2 != null && playerIdentifier != null)
-                    {
-                        controller2.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
                     }
 
                     
-                    foreach (var kvp in playerButtonMap)
-                    {
-                        ButtonIndicatorController ctrl = kvp.Value.GetComponent<ButtonIndicatorController>();
-                        if (ctrl != null)
-                        {
-                            ctrl.SetOrbitState(2);
-                        }
-                    }
+                    UpdateAllButtonOrbitStates();
                 }
             }
 
@@ -812,22 +857,32 @@ public class PuertaDobleAccion : MonoBehaviour
             
             if (playerButtonMap.ContainsKey(player))
             {
-                GameObject buttonToHide = playerButtonMap[player];
-                if (buttonToHide != null) buttonToHide.SetActive(false);
+                GameObject buttonToRemove = playerButtonMap[player];
+
+                if (buttonFollowsPlayer)
+                {
+                    
+                    if (buttonToRemove != null)
+                    {
+                        Destroy(buttonToRemove);
+                    }
+                }
+                else
+                {
+                    
+                    if (buttonToRemove != null)
+                    {
+                        buttonToRemove.SetActive(false);
+                    }
+                }
+
                 playerButtonMap.Remove(player);
             }
 
             jugadoresEnTrigger.Remove(player);
 
             
-            foreach (var kvp in playerButtonMap)
-            {
-                ButtonIndicatorController ctrl = kvp.Value.GetComponent<ButtonIndicatorController>();
-                if (ctrl != null)
-                {
-                    ctrl.SetOrbitState(jugadoresEnTrigger.Count);
-                }
-            }
+            UpdateAllButtonOrbitStates();
 
             if (jugadoresEnTrigger.Count < 2)
             {
@@ -859,6 +914,30 @@ public class PuertaDobleAccion : MonoBehaviour
         }
     }
 
+    private void UpdateAllButtonOrbitStates()
+    {
+        int playerCount = jugadoresEnTrigger.Count;
+
+        if (showDebugInfo)
+        {
+
+        }
+
+        foreach (var kvp in playerButtonMap)
+        {
+            ButtonIndicatorController ctrl = kvp.Value.GetComponent<ButtonIndicatorController>();
+            if (ctrl != null)
+            {
+                ctrl.SetOrbitState(playerCount);
+
+                if (showDebugInfo)
+                {
+
+                }
+            }
+        }
+    }
+
     void OnDestroy()
     {
         
@@ -870,7 +949,23 @@ public class PuertaDobleAccion : MonoBehaviour
             }
         }
 
-        if (buttonIndicator1 != null) Destroy(buttonIndicator1);
-        if (buttonIndicator2 != null) Destroy(buttonIndicator2);
+        
+        if (buttonFollowsPlayer)
+        {
+            
+            foreach (var kvp in playerButtonMap)
+            {
+                if (kvp.Value != null)
+                {
+                    Destroy(kvp.Value);
+                }
+            }
+        }
+        else
+        {
+            
+            if (buttonIndicator1 != null) Destroy(buttonIndicator1);
+            if (buttonIndicator2 != null) Destroy(buttonIndicator2);
+        }
     }
 }
