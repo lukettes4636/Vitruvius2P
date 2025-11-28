@@ -323,6 +323,11 @@ public class PuertaDobleAccion : MonoBehaviour
         
         if (playerButtonMap.ContainsKey(jugador))
         {
+            ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
+            if (controller != null)
+            {
+                controller.TriggerPress();
+            }
             StartCoroutine(AnimateButtonPress(playerButtonMap[jugador]));
             PlayButtonPressAudio();
         }
@@ -378,6 +383,7 @@ public class PuertaDobleAccion : MonoBehaviour
     private void GolpeExitoso(GameObject playerA, GameObject playerB)
     {
         golpesActuales++;
+        bool isFinalHit = (golpesActuales >= golpesNecesarios);
 
         currentStress = Mathf.Clamp01(currentStress + stressAddedPerHit);
 
@@ -387,6 +393,25 @@ public class PuertaDobleAccion : MonoBehaviour
 
         
         PlayHitSuccessAudio();
+
+        
+        if (playerButtonMap.ContainsKey(playerA))
+        {
+            ButtonIndicatorController controllerA = playerButtonMap[playerA].GetComponent<ButtonIndicatorController>();
+            if (controllerA != null)
+            {
+                controllerA.TriggerImpact(true, isFinalHit);
+            }
+        }
+
+        if (playerButtonMap.ContainsKey(playerB))
+        {
+            ButtonIndicatorController controllerB = playerButtonMap[playerB].GetComponent<ButtonIndicatorController>();
+            if (controllerB != null)
+            {
+                controllerB.TriggerImpact(true, isFinalHit);
+            }
+        }
 
         if (playDoorSounds && AudioManager.Instance != null)
         {
@@ -402,6 +427,7 @@ public class PuertaDobleAccion : MonoBehaviour
     private void GolpeExitosoIndividual(GameObject jugador)
     {
         golpesActuales++;
+        bool isFinalHit = (golpesActuales >= golpesNecesarios);
 
         currentStress = Mathf.Clamp01(currentStress + stressAddedPerHit);
 
@@ -410,6 +436,16 @@ public class PuertaDobleAccion : MonoBehaviour
 
         
         PlayHitSuccessAudio();
+
+        
+        if (playerButtonMap.ContainsKey(jugador))
+        {
+            ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
+            if (controller != null)
+            {
+                controller.TriggerImpact(true, isFinalHit);
+            }
+        }
 
         if (playDoorSounds && AudioManager.Instance != null)
         {
@@ -497,9 +533,11 @@ public class PuertaDobleAccion : MonoBehaviour
                     playerButtonMap[player] = buttonIndicator1;
 
                     
-                    if (playerIdentifier != null)
+                    ButtonIndicatorController controller = buttonIndicator1.GetComponent<ButtonIndicatorController>();
+                    if (controller != null && playerIdentifier != null)
                     {
-                        SetButtonPlayerColor(buttonIndicator1, playerIdentifier);
+                        controller.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
+                        controller.SetOrbitState(1); 
                     }
                 }
                 else if (jugadoresEnTrigger.Count == 2)
@@ -510,9 +548,20 @@ public class PuertaDobleAccion : MonoBehaviour
                     playerButtonMap[player] = buttonIndicator2;
 
                     
-                    if (playerIdentifier != null)
+                    ButtonIndicatorController controller2 = buttonIndicator2.GetComponent<ButtonIndicatorController>();
+                    if (controller2 != null && playerIdentifier != null)
                     {
-                        SetButtonPlayerColor(buttonIndicator2, playerIdentifier);
+                        controller2.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
+                    }
+
+                    
+                    foreach (var kvp in playerButtonMap)
+                    {
+                        ButtonIndicatorController ctrl = kvp.Value.GetComponent<ButtonIndicatorController>();
+                        if (ctrl != null)
+                        {
+                            ctrl.SetOrbitState(2); 
+                        }
                     }
                 }
             }
@@ -574,6 +623,16 @@ public class PuertaDobleAccion : MonoBehaviour
 
             jugadoresEnTrigger.Remove(player);
             tiempoUltimoGolpe.Remove(player);
+
+            
+            foreach (var kvp in playerButtonMap)
+            {
+                ButtonIndicatorController ctrl = kvp.Value.GetComponent<ButtonIndicatorController>();
+                if (ctrl != null)
+                {
+                    ctrl.SetOrbitState(jugadoresEnTrigger.Count);
+                }
+            }
 
             if (jugadoresEnTrigger.Count < 2)
             {
