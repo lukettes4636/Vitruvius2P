@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 public class PuertaDobleAccion : MonoBehaviour
 {
-    [Header("Referencias de Puertas")]
+    [Header("Door References")]
     [SerializeField] private Transform puertaA;
     [SerializeField] private Transform puertaB;
 
@@ -23,20 +23,17 @@ public class PuertaDobleAccion : MonoBehaviour
     [SerializeField] private float shakeDuration = 0.2f;
     [SerializeField] private float shakeMagnitude = 0.1f;
 
-    [Header("Joystick Vibration (Rumble)")]
+    [Header("Joystick Vibration")]
     [Range(0f, 1f)][SerializeField] private float lowFrequency = 0.8f;
     [Range(0f, 1f)][SerializeField] private float highFrequency = 0.3f;
     [SerializeField] private float rumbleDuration = 0.25f;
 
     [Header("Cooperation Time Window")]
-    [Tooltip("Ventana de tiempo para considerar los golpes como coordinados (en segundos)")]
     [SerializeField] private float ventanaDeTiempo = 0.3f;
-    [Tooltip("Sistema de buffer: permite preparar el golpe antes de que el compaero presione")]
     [SerializeField] private bool usarSistemaDeBuffer = true;
-    [Tooltip("Tiempo que el golpe queda 'pendiente' esperando al compaero")]
     [SerializeField] private float tiempoDeBuffer = 0.5f;
 
-    [Header("Modo de Apertura")]
+    [Header("Opening Mode")]
     [SerializeField] private bool modoIndividual = false;
 
     [Header("Notification Feedback")]
@@ -57,7 +54,6 @@ public class PuertaDobleAccion : MonoBehaviour
     [Header("Button Indicators")]
     [SerializeField] private GameObject buttonIndicatorPrefab;
     [SerializeField] private Vector3 buttonOffsetFromPlayer = new Vector3(0f, 2.5f, 0f);
-    [Tooltip("Si est activado, los botones siguen a cada jugador. Si no, usan posiciones fijas.")]
     [SerializeField] private bool buttonFollowsPlayer = true;
     [SerializeField] private Vector3 player1ButtonOffset = new Vector3(-1f, 2f, 0f);
     [SerializeField] private Vector3 player2ButtonOffset = new Vector3(1f, 2f, 0f);
@@ -70,22 +66,26 @@ public class PuertaDobleAccion : MonoBehaviour
     [SerializeField] private Color buttonReadyColor = Color.yellow;
 
     [Header("Outline Multiplayer")]
-    [Tooltip("The color used when two or more players are in the trigger.")]
     [SerializeField] private Color cooperativeOutlineColor = Color.yellow;
     [SerializeField] private string outlineColorProperty = "_Outline_Color";
     [SerializeField] private string outlineScaleProperty = "_Outline_Scale";
     [SerializeField] private float activeOutlineScale = 0.0125f;
 
-    [Header("Shader FX - Cooperative Stress")]
-    [Tooltip("Arrastra aqu el Material creado con tu SG_PuzzleStress (Mat_Puzzle)")]
+    [Header("Shader FX")]
     [SerializeField] private Material puzzleFullscreenMat;
     [SerializeField] private float stressDecaySpeed = 0.8f;
     [SerializeField] private float stressAddedPerHit = 0.4f;
     [SerializeField] private float baseTension = 0.15f;
 
-    
-    private List<PlayerIdentifier> activePlayers = new List<PlayerIdentifier>();
-    private List<Renderer> doorRenderers = new List<Renderer>();
+    [Header("UI Prompt Settings")]
+    [SerializeField] private Canvas promptCanvas;
+    [SerializeField] private TextMeshProUGUI promptText;
+
+    [Header("Debug Settings")]
+    [SerializeField] private bool showDebugInfo = false;
+
+    private List<PlayerIdentifier> activePlayers;
+    private List<Renderer> doorRenderers;
     private MaterialPropertyBlock propertyBlock;
     private int outlineColorID;
     private int outlineScaleID;
@@ -98,11 +98,10 @@ public class PuertaDobleAccion : MonoBehaviour
     private bool isCoopMessageShown = false;
 
     private float currentStress = 0f;
-    private int _stressLevelID;
+    private int stressLevelID;
 
-    private HashSet<GameObject> jugadoresEnTrigger = new HashSet<GameObject>();
+    private HashSet<GameObject> jugadoresEnTrigger;
 
-    
     private class PlayerHitData
     {
         public float timestamp;
@@ -117,27 +116,28 @@ public class PuertaDobleAccion : MonoBehaviour
         }
     }
 
-    private Dictionary<GameObject, PlayerHitData> playerHitData = new Dictionary<GameObject, PlayerHitData>();
+    private Dictionary<GameObject, PlayerHitData> playerHitData;
     private Vector3 posicionOriginal;
 
-    
     private GameObject buttonIndicator1;
     private GameObject buttonIndicator2;
-    private Dictionary<GameObject, GameObject> playerButtonMap = new Dictionary<GameObject, GameObject>();
+    private Dictionary<GameObject, GameObject> playerButtonMap;
 
-    [Header("UI Prompt Settings")]
-    [SerializeField] private Canvas promptCanvas;
-    [SerializeField] private TextMeshProUGUI promptText;
+    private void Awake()
+    {
+        activePlayers = new List<PlayerIdentifier>();
+        doorRenderers = new List<Renderer>();
+        jugadoresEnTrigger = new HashSet<GameObject>();
+        playerHitData = new Dictionary<GameObject, PlayerHitData>();
+        playerButtonMap = new Dictionary<GameObject, GameObject>();
+    }
 
-    [Header("Debug")]
-    [SerializeField] private bool showDebugInfo = false;
-
-    void Start()
+    private void Start()
     {
         if (puertaA == null || puertaB == null)
         {
 
-            this.enabled = false;
+            enabled = false;
             return;
         }
 
@@ -146,19 +146,26 @@ public class PuertaDobleAccion : MonoBehaviour
 
         if (puzzleFullscreenMat != null)
         {
-            _stressLevelID = Shader.PropertyToID("_StressLevel");
-            puzzleFullscreenMat.SetFloat(_stressLevelID, 0f);
+            stressLevelID = Shader.PropertyToID("_StressLevel");
+            puzzleFullscreenMat.SetFloat(stressLevelID, 0f);
         }
 
         if (puertaA != null)
         {
             Renderer rendererA = puertaA.GetComponent<Renderer>();
-            if (rendererA != null) doorRenderers.Add(rendererA);
+            if (rendererA != null)
+            {
+                doorRenderers.Add(rendererA);
+            }
         }
+
         if (puertaB != null)
         {
             Renderer rendererB = puertaB.GetComponent<Renderer>();
-            if (rendererB != null) doorRenderers.Add(rendererB);
+            if (rendererB != null)
+            {
+                doorRenderers.Add(rendererB);
+            }
         }
 
         if (doorRenderers.Count > 0)
@@ -174,33 +181,27 @@ public class PuertaDobleAccion : MonoBehaviour
             promptCanvas.enabled = false;
         }
 
-        
-        if (buttonIndicatorPrefab != null)
+        if (buttonIndicatorPrefab != null && !buttonFollowsPlayer)
         {
-            
-            if (!buttonFollowsPlayer)
+            buttonIndicator1 = Instantiate(buttonIndicatorPrefab, transform.position + player1ButtonOffset, Quaternion.identity, transform);
+            buttonIndicator1.SetActive(false);
+
+            if (useBillboardEffect)
             {
-                buttonIndicator1 = Instantiate(buttonIndicatorPrefab, transform.position + player1ButtonOffset, Quaternion.identity, transform);
-                buttonIndicator1.SetActive(false);
-
-                if (useBillboardEffect)
-                {
-                    AddBillboardEffect(buttonIndicator1);
-                }
-
-                buttonIndicator2 = Instantiate(buttonIndicatorPrefab, transform.position + player2ButtonOffset, Quaternion.identity, transform);
-                buttonIndicator2.SetActive(false);
-
-                if (useBillboardEffect)
-                {
-                    AddBillboardEffect(buttonIndicator2);
-                }
+                AddBillboardEffect(buttonIndicator1);
             }
-            
+
+            buttonIndicator2 = Instantiate(buttonIndicatorPrefab, transform.position + player2ButtonOffset, Quaternion.identity, transform);
+            buttonIndicator2.SetActive(false);
+
+            if (useBillboardEffect)
+            {
+                AddBillboardEffect(buttonIndicator2);
+            }
         }
     }
 
-    void Update()
+    private void Update()
     {
         if (estaAbierta)
         {
@@ -209,20 +210,21 @@ public class PuertaDobleAccion : MonoBehaviour
             puertaA.localRotation = Quaternion.AngleAxis(anguloActual, ejeRotacion);
             puertaB.localRotation = Quaternion.AngleAxis(-anguloActual, ejeRotacion);
 
-            if (puzzleFullscreenMat != null && currentStress > 0)
+            if (puzzleFullscreenMat != null && currentStress > 0f)
             {
                 currentStress = Mathf.MoveTowards(currentStress, 0f, Time.deltaTime * 2f);
-                puzzleFullscreenMat.SetFloat(_stressLevelID, currentStress);
+                puzzleFullscreenMat.SetFloat(stressLevelID, currentStress);
             }
 
-            if (anguloActual == anguloObjetivo && currentStress <= 0)
-                this.enabled = false;
+            if (Mathf.Approximately(anguloActual, anguloObjetivo) && currentStress <= 0f)
+            {
+                enabled = false;
+            }
         }
         else
         {
             HandleShaderUpdate();
 
-            
             if (buttonFollowsPlayer)
             {
                 UpdateButtonPositions();
@@ -230,9 +232,30 @@ public class PuertaDobleAccion : MonoBehaviour
         }
     }
 
+    private void HandleShaderUpdate()
+    {
+        if (puzzleFullscreenMat == null)
+        {
+            return;
+        }
+
+        float targetBase = jugadoresEnTrigger.Count >= 2 ? baseTension : 0f;
+
+        if (currentStress > targetBase)
+        {
+            currentStress -= Time.deltaTime * stressDecaySpeed;
+        }
+        else if (currentStress < targetBase)
+        {
+            currentStress = Mathf.MoveTowards(currentStress, targetBase, Time.deltaTime);
+        }
+
+        puzzleFullscreenMat.SetFloat(stressLevelID, currentStress);
+    }
+
     private void UpdateButtonPositions()
     {
-        foreach (var kvp in playerButtonMap)
+        foreach (KeyValuePair<GameObject, GameObject> kvp in playerButtonMap)
         {
             GameObject player = kvp.Key;
             GameObject button = kvp.Value;
@@ -244,31 +267,20 @@ public class PuertaDobleAccion : MonoBehaviour
         }
     }
 
-    private void HandleShaderUpdate()
-    {
-        if (puzzleFullscreenMat == null) return;
-
-        float targetBase = (jugadoresEnTrigger.Count >= 2) ? baseTension : 0f;
-
-        if (currentStress > targetBase)
-        {
-            currentStress -= Time.deltaTime * stressDecaySpeed;
-        }
-        else if (currentStress < targetBase)
-        {
-            currentStress = Mathf.MoveTowards(currentStress, targetBase, Time.deltaTime);
-        }
-
-        puzzleFullscreenMat.SetFloat(_stressLevelID, currentStress);
-    }
-
     private void SetOutlineState(Color color, float scale)
     {
-        if (propertyBlock == null) return;
+        if (propertyBlock == null)
+        {
+            return;
+        }
 
         foreach (Renderer rend in doorRenderers)
         {
-            if (rend == null || rend.sharedMaterials.Length < 2) continue;
+            if (rend == null || rend.sharedMaterials.Length < 2)
+            {
+                continue;
+            }
+
             rend.GetPropertyBlock(propertyBlock, 1);
             propertyBlock.SetColor(outlineColorID, color);
             propertyBlock.SetFloat(outlineScaleID, scale);
@@ -278,7 +290,11 @@ public class PuertaDobleAccion : MonoBehaviour
 
     private void UpdateOutlineVisuals()
     {
-        if (estaAbierta) return;
+        if (estaAbierta)
+        {
+            return;
+        }
+
         if (activePlayers.Count == 0)
         {
             SetOutlineState(originalOutlineColor, 0.0f);
@@ -296,12 +312,15 @@ public class PuertaDobleAccion : MonoBehaviour
 
     private void AddBillboardEffect(GameObject buttonObject)
     {
-        if (buttonObject == null) return;
+        if (buttonObject == null)
+        {
+            return;
+        }
 
         BillboardEffect billboard = buttonObject.GetComponent<BillboardEffect>();
         if (billboard == null)
         {
-            billboard = buttonObject.AddComponent<BillboardEffect>();
+            buttonObject.AddComponent<BillboardEffect>();
         }
     }
 
@@ -313,7 +332,7 @@ public class PuertaDobleAccion : MonoBehaviour
             float x = Random.Range(-1f, 1f) * intensidadTemblor;
             float z = Random.Range(-1f, 1f) * intensidadTemblor;
 
-            transform.position = posicionOriginal + new Vector3(x, 0, z);
+            transform.position = posicionOriginal + new Vector3(x, 0f, z);
             timer += Time.deltaTime;
             yield return null;
         }
@@ -322,7 +341,10 @@ public class PuertaDobleAccion : MonoBehaviour
 
     private IEnumerator AnimateButtonPress(GameObject buttonIndicator)
     {
-        if (buttonIndicator == null) yield break;
+        if (buttonIndicator == null)
+        {
+            yield break;
+        }
 
         ButtonIndicatorController controller = buttonIndicator.GetComponent<ButtonIndicatorController>();
         if (controller != null)
@@ -335,12 +357,14 @@ public class PuertaDobleAccion : MonoBehaviour
 
     private IEnumerator WaitForPartnerBuffer(GameObject jugador)
     {
-        if (!playerHitData.ContainsKey(jugador)) yield break;
+        if (!playerHitData.ContainsKey(jugador))
+        {
+            yield break;
+        }
 
         PlayerHitData hitData = playerHitData[jugador];
         hitData.isWaitingForPartner = true;
 
-        
         if (playerButtonMap.ContainsKey(jugador))
         {
             ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
@@ -350,7 +374,6 @@ public class PuertaDobleAccion : MonoBehaviour
             }
         }
 
-        
         PlayerUIController uiController = GetPlayerUIController(jugador);
         if (uiController != null)
         {
@@ -364,7 +387,6 @@ public class PuertaDobleAccion : MonoBehaviour
 
         yield return new WaitForSeconds(tiempoDeBuffer);
 
-        
         if (hitData.isWaitingForPartner)
         {
             hitData.isWaitingForPartner = false;
@@ -380,7 +402,7 @@ public class PuertaDobleAccion : MonoBehaviour
     private IEnumerator PulseButtonWhileWaiting(ButtonIndicatorController controller, float duration)
     {
         float elapsed = 0f;
-        Color originalColor = Color.white; 
+        Color originalColor = Color.white;
 
         while (elapsed < duration)
         {
@@ -390,9 +412,6 @@ public class PuertaDobleAccion : MonoBehaviour
             elapsed += Time.deltaTime;
             yield return null;
         }
-
-        
-        
     }
 
     private void PlayButtonPressAudio()
@@ -427,25 +446,15 @@ public class PuertaDobleAccion : MonoBehaviour
         }
     }
 
-    private void SetButtonPlayerColor(GameObject buttonIndicator, PlayerIdentifier playerIdentifier)
-    {
-        if (!usePlayerColors || buttonIndicator == null || playerIdentifier == null) return;
-
-        ButtonIndicatorController controller = buttonIndicator.GetComponent<ButtonIndicatorController>();
-        if (controller != null)
-        {
-            controller.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
-        }
-    }
-
     public void IntentoDeAccion(GameObject jugador)
     {
-        if (estaAbierta) return;
-        if (!jugadoresEnTrigger.Contains(jugador)) return;
+        if (estaAbierta || !jugadoresEnTrigger.Contains(jugador))
+        {
+            return;
+        }
 
         float tiempoActual = Time.time;
 
-        
         if (!playerHitData.ContainsKey(jugador))
         {
             playerHitData[jugador] = new PlayerHitData(tiempoActual);
@@ -454,7 +463,6 @@ public class PuertaDobleAccion : MonoBehaviour
         PlayerHitData currentHitData = playerHitData[jugador];
         currentHitData.timestamp = tiempoActual;
 
-        
         if (playerButtonMap.ContainsKey(jugador))
         {
             ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
@@ -466,14 +474,12 @@ public class PuertaDobleAccion : MonoBehaviour
             PlayButtonPressAudio();
         }
 
-        
         if (modoIndividual)
         {
             GolpeExitosoIndividual(jugador);
             return;
         }
 
-        
         if (jugadoresEnTrigger.Count < 2)
         {
             PlayErrorAudio();
@@ -485,7 +491,6 @@ public class PuertaDobleAccion : MonoBehaviour
             return;
         }
 
-        
         GameObject otroJugador = null;
         foreach (GameObject p in jugadoresEnTrigger)
         {
@@ -496,9 +501,11 @@ public class PuertaDobleAccion : MonoBehaviour
             }
         }
 
-        if (otroJugador == null) return;
+        if (otroJugador == null)
+        {
+            return;
+        }
 
-        
         if (!playerHitData.ContainsKey(otroJugador))
         {
             playerHitData[otroJugador] = new PlayerHitData(float.MinValue);
@@ -512,18 +519,13 @@ public class PuertaDobleAccion : MonoBehaviour
 
         }
 
-        
-
-        
         if (usarSistemaDeBuffer && otherHitData.isWaitingForPartner)
         {
-            
             if (showDebugInfo)
             {
 
             }
 
-            
             if (otherHitData.bufferCoroutine != null)
             {
                 StopCoroutine(otherHitData.bufferCoroutine);
@@ -533,13 +535,11 @@ public class PuertaDobleAccion : MonoBehaviour
             otherHitData.isWaitingForPartner = false;
             GolpeExitoso(jugador, otroJugador);
 
-            
             currentHitData.timestamp = float.MinValue;
             otherHitData.timestamp = float.MinValue;
             return;
         }
 
-        
         if (diferenciaTiempo <= ventanaDeTiempo && otherHitData.timestamp > float.MinValue)
         {
             if (showDebugInfo)
@@ -549,22 +549,18 @@ public class PuertaDobleAccion : MonoBehaviour
 
             GolpeExitoso(jugador, otroJugador);
 
-            
             currentHitData.timestamp = float.MinValue;
             otherHitData.timestamp = float.MinValue;
             return;
         }
 
-        
         if (usarSistemaDeBuffer && !currentHitData.isWaitingForPartner)
         {
-            
             if (currentHitData.bufferCoroutine != null)
             {
                 StopCoroutine(currentHitData.bufferCoroutine);
             }
 
-            
             currentHitData.bufferCoroutine = StartCoroutine(WaitForPartnerBuffer(jugador));
             PlayButtonReadyAudio();
 
@@ -575,7 +571,6 @@ public class PuertaDobleAccion : MonoBehaviour
             return;
         }
 
-        
         if (showDebugInfo)
         {
 
@@ -587,7 +582,7 @@ public class PuertaDobleAccion : MonoBehaviour
     private void GolpeExitoso(GameObject playerA, GameObject playerB)
     {
         golpesActuales++;
-        bool isFinalHit = (golpesActuales >= golpesNecesarios);
+        bool isFinalHit = golpesActuales >= golpesNecesarios;
 
         if (showDebugInfo)
         {
@@ -602,7 +597,6 @@ public class PuertaDobleAccion : MonoBehaviour
 
         PlayHitSuccessAudio();
 
-        
         if (playerButtonMap.ContainsKey(playerA))
         {
             ButtonIndicatorController controllerA = playerButtonMap[playerA].GetComponent<ButtonIndicatorController>();
@@ -624,18 +618,22 @@ public class PuertaDobleAccion : MonoBehaviour
         if (playDoorSounds && AudioManager.Instance != null)
         {
             var cfg = AudioManager.Instance.GetAudioConfig();
-            if (cfg.doorOpenSounds.Length > 0)
+            if (cfg.doorOpenSounds != null && cfg.doorOpenSounds.Length > 0)
+            {
                 AudioManager.Instance.PlaySFX(cfg.doorOpenSounds[0], transform.position, 0.7f, 0.9f);
+            }
         }
 
         if (golpesActuales >= golpesNecesarios)
+        {
             AbrirPuerta();
+        }
     }
 
     private void GolpeExitosoIndividual(GameObject jugador)
     {
         golpesActuales++;
-        bool isFinalHit = (golpesActuales >= golpesNecesarios);
+        bool isFinalHit = golpesActuales >= golpesNecesarios;
 
         currentStress = Mathf.Clamp01(currentStress + stressAddedPerHit);
 
@@ -644,7 +642,6 @@ public class PuertaDobleAccion : MonoBehaviour
 
         PlayHitSuccessAudio();
 
-        
         if (playerButtonMap.ContainsKey(jugador))
         {
             ButtonIndicatorController controller = playerButtonMap[jugador].GetComponent<ButtonIndicatorController>();
@@ -657,20 +654,32 @@ public class PuertaDobleAccion : MonoBehaviour
         if (playDoorSounds && AudioManager.Instance != null)
         {
             var cfg = AudioManager.Instance.GetAudioConfig();
-            if (cfg.doorOpenSounds.Length > 0)
+            if (cfg.doorOpenSounds != null && cfg.doorOpenSounds.Length > 0)
+            {
                 AudioManager.Instance.PlaySFX(cfg.doorOpenSounds[0], transform.position, 0.7f, 0.9f);
+            }
         }
 
         if (golpesActuales >= golpesNecesarios)
+        {
             AbrirPuerta();
+        }
     }
 
     private void RequestCooperativeEffects(GameObject player)
     {
-        if (player.GetComponent<MovJugador1>() is MovJugador1 mov1)
+        MovJugador1 mov1 = player.GetComponent<MovJugador1>();
+        if (mov1 != null)
+        {
             mov1.StartCooperativeEffects(shakeDuration, shakeMagnitude, lowFrequency, highFrequency, rumbleDuration);
-        else if (player.GetComponent<MovJugador2>() is MovJugador2 mov2)
+            return;
+        }
+
+        MovJugador2 mov2 = player.GetComponent<MovJugador2>();
+        if (mov2 != null)
+        {
             mov2.StartCooperativeEffects(shakeDuration, shakeMagnitude, lowFrequency, highFrequency, rumbleDuration);
+        }
     }
 
     private void AbrirPuerta()
@@ -687,251 +696,43 @@ public class PuertaDobleAccion : MonoBehaviour
         if (playDoorSounds && AudioManager.Instance != null)
         {
             var cfg = AudioManager.Instance.GetAudioConfig();
-            if (cfg.doorOpenSounds.Length > 0)
+            if (cfg.doorOpenSounds != null && cfg.doorOpenSounds.Length > 0)
+            {
                 AudioManager.Instance.PlaySFX(cfg.doorOpenSounds[0], transform.position, 0.8f, 1f);
+            }
         }
 
-        foreach (Collider col in GetComponents<Collider>())
+        Collider[] colliders = GetComponents<Collider>();
+        foreach (Collider col in colliders)
+        {
             col.enabled = false;
+        }
 
         foreach (GameObject player in jugadoresEnTrigger)
         {
-            if (player == null) continue;
+            if (player == null)
+            {
+                continue;
+            }
+
             MovJugador1 mov1 = player.GetComponent<MovJugador1>();
             MovJugador2 mov2 = player.GetComponent<MovJugador2>();
-            if (mov1 != null) mov1.ClearCurrentDoor(this);
-            if (mov2 != null) mov2.ClearCurrentDoor(this);
-        }
 
-        jugadoresEnTrigger.Clear();
-        playerHitData.Clear();
-        if (promptCanvas != null) promptCanvas.enabled = false;
-
-        if (buttonIndicator1 != null) buttonIndicator1.SetActive(false);
-        if (buttonIndicator2 != null) buttonIndicator2.SetActive(false);
-        playerButtonMap.Clear();
-    }
-
-    private PlayerUIController GetPlayerUIController(GameObject playerObject)
-    {
-        if (playerObject == null) return null;
-        PlayerUIController ui = playerObject.GetComponent<PlayerUIController>();
-        if (ui != null) return ui;
-        return playerObject.GetComponentInParent<PlayerUIController>();
-    }
-
-    public void AddPlayer(GameObject player)
-    {
-        PlayerIdentifier playerIdentifier = player.GetComponent<PlayerIdentifier>();
-        if (playerIdentifier != null)
-        {
-            if (!activePlayers.Contains(playerIdentifier))
-                activePlayers.Add(playerIdentifier);
-            UpdateOutlineVisuals();
-        }
-
-        if (estaAbierta) return;
-        if (!jugadoresEnTrigger.Contains(player))
-        {
-            jugadoresEnTrigger.Add(player);
-
-            
-            if (!playerHitData.ContainsKey(player))
+            if (mov1 != null)
             {
-                playerHitData[player] = new PlayerHitData(float.MinValue);
+                mov1.ClearCurrentDoor(this);
             }
 
-            
-            if (buttonIndicatorPrefab != null)
+            if (mov2 != null)
             {
-                GameObject assignedButton = null;
-
-                if (buttonFollowsPlayer)
-                {
-                    
-                    assignedButton = Instantiate(buttonIndicatorPrefab, player.transform.position + buttonOffsetFromPlayer, Quaternion.identity);
-                    assignedButton.name = $"ButtonIndicator_{player.name}";
-
-                    if (useBillboardEffect)
-                    {
-                        AddBillboardEffect(assignedButton);
-                    }
-                }
-                else
-                {
-                    
-                    if (jugadoresEnTrigger.Count == 1)
-                    {
-                        assignedButton = buttonIndicator1;
-                    }
-                    else if (jugadoresEnTrigger.Count == 2)
-                    {
-                        
-                        bool button1Assigned = false;
-                        foreach (var kvp in playerButtonMap)
-                        {
-                            if (kvp.Value == buttonIndicator1)
-                            {
-                                button1Assigned = true;
-                                break;
-                            }
-                        }
-                        assignedButton = button1Assigned ? buttonIndicator2 : buttonIndicator1;
-                    }
-                }
-
-                if (assignedButton != null)
-                {
-                    assignedButton.SetActive(true);
-                    playerButtonMap[player] = assignedButton;
-
-                    
-                    ButtonIndicatorController controller = assignedButton.GetComponent<ButtonIndicatorController>();
-                    if (controller != null && playerIdentifier != null)
-                    {
-                        controller.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
-                    }
-                }
-            }
-
-            PlayerUIController uiController = GetPlayerUIController(player);
-
-            if (jugadoresEnTrigger.Count == 1)
-            {
-                if (uiController != null)
-                    uiController.ShowNotification(needHelpMessage);
-
-                if (promptCanvas != null && promptText != null)
-                {
-                    promptCanvas.enabled = true;
-                    promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
-                }
-
-                isCoopMessageShown = false;
-            }
-            else if (jugadoresEnTrigger.Count >= 2 && !isCoopMessageShown)
-            {
-                if (uiController != null)
-                    uiController.ShowNotification(readyToActMessage);
-
-                foreach (GameObject otherPlayer in jugadoresEnTrigger)
-                {
-                    if (otherPlayer != player)
-                    {
-                        PlayerUIController otherUI = GetPlayerUIController(otherPlayer);
-                        if (otherUI != null)
-                            otherUI.ShowNotification(readyToActMessage);
-                    }
-                }
-                isCoopMessageShown = true;
-            }
-        }
-    }
-
-    public void RemovePlayer(GameObject player)
-    {
-        PlayerIdentifier playerIdentifier = player.GetComponent<PlayerIdentifier>();
-        if (playerIdentifier != null)
-        {
-            if (activePlayers.Contains(playerIdentifier))
-                activePlayers.Remove(playerIdentifier);
-            UpdateOutlineVisuals();
-        }
-
-        if (estaAbierta) return;
-        if (jugadoresEnTrigger.Contains(player))
-        {
-            
-            if (playerHitData.ContainsKey(player))
-            {
-                PlayerHitData hitData = playerHitData[player];
-                if (hitData.bufferCoroutine != null)
-                {
-                    StopCoroutine(hitData.bufferCoroutine);
-                    hitData.bufferCoroutine = null;
-                }
-                playerHitData.Remove(player);
-            }
-
-            
-            if (playerButtonMap.ContainsKey(player))
-            {
-                GameObject buttonToRemove = playerButtonMap[player];
-
-                if (buttonFollowsPlayer)
-                {
-                    
-                    if (buttonToRemove != null)
-                    {
-                        Destroy(buttonToRemove);
-                    }
-                }
-                else
-                {
-                    
-                    if (buttonToRemove != null)
-                    {
-                        buttonToRemove.SetActive(false);
-                    }
-                }
-
-                playerButtonMap.Remove(player);
-            }
-
-            jugadoresEnTrigger.Remove(player);
-
-            if (jugadoresEnTrigger.Count < 2)
-            {
-                isCoopMessageShown = false;
-            }
-
-            if (jugadoresEnTrigger.Count == 1)
-            {
-                GameObject remainingPlayer = null;
-                foreach (GameObject p in jugadoresEnTrigger) { remainingPlayer = p; break; }
-
-                if (remainingPlayer != null)
-                {
-                    PlayerUIController remainingUI = GetPlayerUIController(remainingPlayer);
-                    if (remainingUI != null)
-                        remainingUI.ShowNotification(needHelpMessage);
-
-                    if (promptCanvas != null && promptText != null)
-                    {
-                        promptCanvas.enabled = true;
-                        promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
-                    }
-                }
-            }
-            else if (jugadoresEnTrigger.Count == 0 && promptCanvas != null)
-            {
-                promptCanvas.enabled = false;
-            }
-        }
-    }
-
-    private void UpdateAllButtonOrbitStates()
-    {
-        
-        
-    }
-
-    void OnDestroy()
-    {
-        
-        foreach (var kvp in playerHitData)
-        {
-            if (kvp.Value.bufferCoroutine != null)
-            {
-                StopCoroutine(kvp.Value.bufferCoroutine);
+                mov2.ClearCurrentDoor(this);
             }
         }
 
         
         if (buttonFollowsPlayer)
         {
-            
-            foreach (var kvp in playerButtonMap)
+            foreach (KeyValuePair<GameObject, GameObject> kvp in playerButtonMap)
             {
                 if (kvp.Value != null)
                 {
@@ -941,9 +742,272 @@ public class PuertaDobleAccion : MonoBehaviour
         }
         else
         {
-            
-            if (buttonIndicator1 != null) Destroy(buttonIndicator1);
-            if (buttonIndicator2 != null) Destroy(buttonIndicator2);
+            if (buttonIndicator1 != null)
+            {
+                buttonIndicator1.SetActive(false);
+            }
+
+            if (buttonIndicator2 != null)
+            {
+                buttonIndicator2.SetActive(false);
+            }
+        }
+
+        jugadoresEnTrigger.Clear();
+        playerHitData.Clear();
+        playerButtonMap.Clear();
+
+        if (promptCanvas != null)
+        {
+            promptCanvas.enabled = false;
+        }
+    }
+
+    private PlayerUIController GetPlayerUIController(GameObject playerObject)
+    {
+        if (playerObject == null)
+        {
+            return null;
+        }
+
+        PlayerUIController ui = playerObject.GetComponent<PlayerUIController>();
+        if (ui != null)
+        {
+            return ui;
+        }
+
+        return playerObject.GetComponentInParent<PlayerUIController>();
+    }
+
+    public void AddPlayer(GameObject player)
+    {
+        PlayerIdentifier playerIdentifier = player.GetComponent<PlayerIdentifier>();
+        if (playerIdentifier != null)
+        {
+            if (!activePlayers.Contains(playerIdentifier))
+            {
+                activePlayers.Add(playerIdentifier);
+            }
+            UpdateOutlineVisuals();
+        }
+
+        if (estaAbierta || jugadoresEnTrigger.Contains(player))
+        {
+            return;
+        }
+
+        jugadoresEnTrigger.Add(player);
+
+        if (!playerHitData.ContainsKey(player))
+        {
+            playerHitData[player] = new PlayerHitData(float.MinValue);
+        }
+
+        if (buttonIndicatorPrefab != null)
+        {
+            GameObject assignedButton = null;
+
+            if (buttonFollowsPlayer)
+            {
+                assignedButton = Instantiate(buttonIndicatorPrefab, player.transform.position + buttonOffsetFromPlayer, Quaternion.identity);
+                assignedButton.name = string.Format("ButtonIndicator_{0}", player.name);
+
+                if (useBillboardEffect)
+                {
+                    AddBillboardEffect(assignedButton);
+                }
+            }
+            else
+            {
+                if (jugadoresEnTrigger.Count == 1)
+                {
+                    assignedButton = buttonIndicator1;
+                }
+                else if (jugadoresEnTrigger.Count == 2)
+                {
+                    bool button1Assigned = false;
+                    foreach (KeyValuePair<GameObject, GameObject> kvp in playerButtonMap)
+                    {
+                        if (kvp.Value == buttonIndicator1)
+                        {
+                            button1Assigned = true;
+                            break;
+                        }
+                    }
+                    assignedButton = button1Assigned ? buttonIndicator2 : buttonIndicator1;
+                }
+            }
+
+            if (assignedButton != null)
+            {
+                assignedButton.SetActive(true);
+                playerButtonMap[player] = assignedButton;
+
+                ButtonIndicatorController controller = assignedButton.GetComponent<ButtonIndicatorController>();
+                if (controller != null && playerIdentifier != null)
+                {
+                    controller.SetPlayerColor(playerIdentifier.PlayerOutlineColor);
+                }
+            }
+        }
+
+        PlayerUIController uiController = GetPlayerUIController(player);
+
+        if (jugadoresEnTrigger.Count == 1)
+        {
+            if (uiController != null)
+            {
+                uiController.ShowNotification(needHelpMessage);
+            }
+
+            if (promptCanvas != null && promptText != null)
+            {
+                promptCanvas.enabled = true;
+                promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
+            }
+
+            isCoopMessageShown = false;
+        }
+        else if (jugadoresEnTrigger.Count >= 2 && !isCoopMessageShown)
+        {
+            if (uiController != null)
+            {
+                uiController.ShowNotification(readyToActMessage);
+            }
+
+            foreach (GameObject otherPlayer in jugadoresEnTrigger)
+            {
+                if (otherPlayer != player)
+                {
+                    PlayerUIController otherUI = GetPlayerUIController(otherPlayer);
+                    if (otherUI != null)
+                    {
+                        otherUI.ShowNotification(readyToActMessage);
+                    }
+                }
+            }
+            isCoopMessageShown = true;
+        }
+    }
+
+    public void RemovePlayer(GameObject player)
+    {
+        PlayerIdentifier playerIdentifier = player.GetComponent<PlayerIdentifier>();
+        if (playerIdentifier != null)
+        {
+            if (activePlayers.Contains(playerIdentifier))
+            {
+                activePlayers.Remove(playerIdentifier);
+            }
+            UpdateOutlineVisuals();
+        }
+
+        if (estaAbierta || !jugadoresEnTrigger.Contains(player))
+        {
+            return;
+        }
+
+        if (playerHitData.ContainsKey(player))
+        {
+            PlayerHitData hitData = playerHitData[player];
+            if (hitData.bufferCoroutine != null)
+            {
+                StopCoroutine(hitData.bufferCoroutine);
+                hitData.bufferCoroutine = null;
+            }
+            playerHitData.Remove(player);
+        }
+
+        if (playerButtonMap.ContainsKey(player))
+        {
+            GameObject buttonToRemove = playerButtonMap[player];
+
+            if (buttonFollowsPlayer)
+            {
+                if (buttonToRemove != null)
+                {
+                    Destroy(buttonToRemove);
+                }
+            }
+            else
+            {
+                if (buttonToRemove != null)
+                {
+                    buttonToRemove.SetActive(false);
+                }
+            }
+
+            playerButtonMap.Remove(player);
+        }
+
+        jugadoresEnTrigger.Remove(player);
+
+        if (jugadoresEnTrigger.Count < 2)
+        {
+            isCoopMessageShown = false;
+        }
+
+        if (jugadoresEnTrigger.Count == 1)
+        {
+            GameObject remainingPlayer = null;
+            foreach (GameObject p in jugadoresEnTrigger)
+            {
+                remainingPlayer = p;
+                break;
+            }
+
+            if (remainingPlayer != null)
+            {
+                PlayerUIController remainingUI = GetPlayerUIController(remainingPlayer);
+                if (remainingUI != null)
+                {
+                    remainingUI.ShowNotification(needHelpMessage);
+                }
+
+                if (promptCanvas != null && promptText != null)
+                {
+                    promptCanvas.enabled = true;
+                    promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
+                }
+            }
+        }
+        else if (jugadoresEnTrigger.Count == 0 && promptCanvas != null)
+        {
+            promptCanvas.enabled = false;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        foreach (KeyValuePair<GameObject, PlayerHitData> kvp in playerHitData)
+        {
+            if (kvp.Value.bufferCoroutine != null)
+            {
+                StopCoroutine(kvp.Value.bufferCoroutine);
+            }
+        }
+
+        if (buttonFollowsPlayer)
+        {
+            foreach (KeyValuePair<GameObject, GameObject> kvp in playerButtonMap)
+            {
+                if (kvp.Value != null)
+                {
+                    Destroy(kvp.Value);
+                }
+            }
+        }
+        else
+        {
+            if (buttonIndicator1 != null)
+            {
+                Destroy(buttonIndicator1);
+            }
+
+            if (buttonIndicator2 != null)
+            {
+                Destroy(buttonIndicator2);
+            }
         }
     }
 }
