@@ -28,7 +28,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 3.2719102, y: 3.2719102, z: 3.2719102}
+  m_LocalScale: {x: 3.8791769, y: 3.8791769, z: 3.8791769}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 6095358794991568296}
@@ -144,8 +144,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 4.33, y: -1.69, z: 11.06}
-  m_LocalScale: {x: 0.31057, y: 0.31057, z: 0.31057}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 0.15, y: 0.15, z: 0.15}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 4187334494258128547}
   m_Father: {fileID: 0}
@@ -235,7 +235,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3089a3a88d2bd52469f2b2fa7d097320, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  shockwaveVFX: {fileID: 0}
+  shockwaveVFX: {fileID: 921899496418286239}
   shockwaveBaseScale: 1
   shockwaveFinalScale: 5
   enablePulse: 1
