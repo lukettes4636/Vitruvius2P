@@ -1,11 +1,10 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.VFX;
 
 public class MovJugador1 : MonoBehaviour
 {
-
     [Header("Velocidades")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float runSpeed = 8f;
@@ -37,13 +36,12 @@ public class MovJugador1 : MonoBehaviour
 
     [Header("Door Lift Settings")]
     [SerializeField] private InputActionReference liftDoorAction;
-    [SerializeField] private GameObject fallenDoor;
 
     [Header("Visual Effect - Fog Sphere")]
-    [Tooltip("Referencia al Visual Effect del jugador (la esfera de niebla)")]
+    [Tooltip("Referencia al Visual Effect del jugador")]
     [SerializeField] private VisualEffect fogSphereVFX;
 
-    [Tooltip("Nombre del parametro Vector3 en el VFX Graph (por defecto 'SpherePosition')")]
+    [Tooltip("Nombre del parametro Vector3 en el VFX Graph")]
     [SerializeField] private string vfxCenterParameterName = "SpherePosition";
 
     [Tooltip("Offset vertical de la esfera respecto al jugador")]
@@ -64,7 +62,6 @@ public class MovJugador1 : MonoBehaviour
     [Header("Popup Flotante sobre cabeza")]
     [SerializeField] private PlayerPopupBillboard popupBillboard;
 
-
     private CharacterController controller;
     private Animator animator;
     private PlayerInventory playerInventory;
@@ -80,15 +77,12 @@ public class MovJugador1 : MonoBehaviour
     private bool canRun = true;
     private Vector3 verticalVelocity;
 
-    
     private bool wasRunning = false;
     private bool staminaWasEmpty = false;
-
 
     private bool isInUI = false;
     private KeypadUIManager currentLockUI = null;
     private PlayerInput playerInput;
-
 
     private FallenDoor currentDoorToLift = null;
     private bool isHoldingDoor = false;
@@ -97,17 +91,14 @@ public class MovJugador1 : MonoBehaviour
     private bool liftButtonPressed = false;
     [SerializeField] private float minHoldTimeToStartLift = 0.15f;
 
-
     private PuertaDobleAccion currentDoor = null;
     private ElectricBox currentElectricBox = null;
     private PuertaDobleConLlave currentKeyDoor = null;
-
 
     private Transform cameraTransform;
     private Vector3 originalCameraPosition;
     private bool isShaking = false;
     private Gamepad gamepad;
-
 
     void Awake()
     {
@@ -166,11 +157,11 @@ public class MovJugador1 : MonoBehaviour
         gamepad?.SetMotorSpeeds(0f, 0f);
     }
 
-
     private void OnTriggerEnter(Collider other)
     {
+        
         FallenDoor doorScript = other.GetComponent<FallenDoor>();
-        if (doorScript != null && doorScript.gameObject == fallenDoor)
+        if (doorScript != null)
             currentDoorToLift = doorScript;
 
         ElectricBox box = other.GetComponentInParent<ElectricBox>() ?? other.GetComponent<ElectricBox>();
@@ -504,10 +495,8 @@ public class MovJugador1 : MonoBehaviour
         }
     }
 
-
     void Update()
     {
-        
         if (fogSphereVFX != null)
         {
             Vector3 spherePosition = transform.position + sphereOffset;
@@ -524,23 +513,16 @@ public class MovJugador1 : MonoBehaviour
         float desiredSpeed;
         bool moving = moveInput.magnitude > 0.1f;
 
-        
-        
-        
-
-        
         if (currentStamina < maxStamina && !isRunningInput)
         {
             float previousStamina = currentStamina;
             currentStamina = Mathf.Clamp(currentStamina + staminaRechargeRate * Time.deltaTime, 0, maxStamina);
 
-            
             if (staminaUI != null)
             {
                 staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
             }
 
-            
             if (previousStamina < maxStamina && currentStamina >= maxStamina && staminaWasEmpty)
             {
                 if (staminaUI != null)
@@ -551,28 +533,22 @@ public class MovJugador1 : MonoBehaviour
             }
         }
 
-        
         if (currentStamina <= 0 && canRun)
         {
             canRun = false;
             cooldownTimer = runCooldown;
             staminaWasEmpty = true;
-
-            
             isRunningInput = false;
 
-            
             if (staminaUI != null)
             {
                 staminaUI.HideStaminaBar();
             }
         }
 
-        
         if (!moving && isRunningInput)
             isRunningInput = false;
 
-        
         if (!canRun)
         {
             cooldownTimer -= Time.deltaTime;
@@ -581,25 +557,19 @@ public class MovJugador1 : MonoBehaviour
                 canRun = true;
                 currentStamina = maxStamina;
 
-                
                 if (staminaUI != null)
                 {
                     staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
                 }
 
-                
                 if (staminaWasEmpty && staminaUI != null)
                 {
                     staminaUI.OnStaminaFullyRecharged();
                     staminaWasEmpty = false;
                 }
-
-                
-                
             }
         }
 
-        
         if (isCrouching)
         {
             desiredSpeed = crouchSpeed;
@@ -607,17 +577,13 @@ public class MovJugador1 : MonoBehaviour
         else if (isRunningInput && moving && canRun)
         {
             desiredSpeed = runSpeed;
-
-            
             currentStamina = Mathf.Clamp(currentStamina - staminaDepletionRate * Time.deltaTime, 0, maxStamina);
 
-            
             if (staminaUI != null)
             {
                 staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
             }
 
-            
             if (!wasRunning && staminaUI != null)
             {
                 staminaUI.ShowStaminaBar();
@@ -628,7 +594,6 @@ public class MovJugador1 : MonoBehaviour
         {
             desiredSpeed = moveSpeed;
 
-            
             if (wasRunning && staminaUI != null)
             {
                 staminaUI.HideStaminaBar();
@@ -636,15 +601,9 @@ public class MovJugador1 : MonoBehaviour
             }
         }
 
-        
-        
-        
-
-        
         float accel = currentSpeedScalar < desiredSpeed ? acceleration : deceleration;
         currentSpeedScalar = Mathf.MoveTowards(currentSpeedScalar, desiredSpeed, accel * Time.deltaTime);
 
-        
         Vector3 movement;
         if (cameraTransform != null)
         {
@@ -663,32 +622,26 @@ public class MovJugador1 : MonoBehaviour
             movement = new Vector3(moveInput.x, 0, moveInput.y);
         }
 
-        
         if (controller.isGrounded)
             verticalVelocity.y = -2f;
         else
             verticalVelocity.y += gravity * Time.deltaTime;
 
-        
         Vector3 finalMovement = (movement * currentSpeedScalar) + new Vector3(0, verticalVelocity.y, 0);
         controller.Move(finalMovement * Time.deltaTime);
 
-        
         if (movement != Vector3.zero)
         {
             Quaternion targetRotation = Quaternion.LookRotation(movement);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
 
-        
         animator.SetBool("IsCrouching", isCrouching);
         animator.SetBool("IsRunning", isRunningInput && moving && canRun && !isCrouching);
 
-        
         controller.height = isCrouching ? crouchHeight : standHeight;
         controller.center = isCrouching ? crouchCenter : standCenter;
 
-        
         animator.SetFloat("Speed", moving ? (isRunningInput && canRun ? 2f : (isCrouching ? 0.5f : 1f)) : 0f);
     }
 
@@ -706,7 +659,6 @@ public class MovJugador1 : MonoBehaviour
         isMoving = false;
         isRunningInput = false;
 
-        
         if (staminaUI != null)
         {
             staminaUI.HideImmediate();
@@ -736,7 +688,6 @@ public class MovJugador1 : MonoBehaviour
         verticalVelocity.y = -5f;
         wasRunning = false;
 
-        
         if (staminaUI != null)
         {
             staminaUI.HideImmediate();
