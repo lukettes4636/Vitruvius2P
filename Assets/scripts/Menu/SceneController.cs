@@ -1,5 +1,6 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Collections;
 
 namespace Michsky.UI.Dark
 {
@@ -10,6 +11,7 @@ namespace Michsky.UI.Dark
 
         [Header("TRANSITION SETTINGS")]
         public float transitionDelay = 0.5f;
+        public bool useFadeTransition = true;
 
         private bool isTransitioning = false;
 
@@ -18,7 +20,15 @@ namespace Michsky.UI.Dark
             if (isTransitioning == false)
             {
                 isTransitioning = true;
-                Invoke("LoadGame", transitionDelay);
+
+                if (useFadeTransition && SceneFadeController.Instance != null)
+                {
+                    StartCoroutine(LoadGameWithFade());
+                }
+                else
+                {
+                    Invoke("LoadGame", transitionDelay);
+                }
             }
         }
 
@@ -31,11 +41,14 @@ namespace Michsky.UI.Dark
         {
             if (string.IsNullOrEmpty(sceneName) == false)
             {
-                SceneManager.LoadScene(sceneName);
-            }
-            else
-            {
-
+                if (useFadeTransition && SceneFadeController.Instance != null)
+                {
+                    StartCoroutine(LoadSceneWithFade(sceneName));
+                }
+                else
+                {
+                    SceneManager.LoadScene(sceneName);
+                }
             }
         }
 
@@ -43,22 +56,31 @@ namespace Michsky.UI.Dark
         {
             if (sceneIndex >= 0 && sceneIndex < SceneManager.sceneCountInBuildSettings)
             {
-                SceneManager.LoadScene(sceneIndex);
-            }
-            else
-            {
-
+                if (useFadeTransition && SceneFadeController.Instance != null)
+                {
+                    StartCoroutine(LoadSceneWithFade(sceneIndex));
+                }
+                else
+                {
+                    SceneManager.LoadScene(sceneIndex);
+                }
             }
         }
 
         public void RestartCurrentScene()
         {
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            if (useFadeTransition && SceneFadeController.Instance != null)
+            {
+                StartCoroutine(LoadSceneWithFade(SceneManager.GetActiveScene().name));
+            }
+            else
+            {
+                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            }
         }
 
         public void QuitGame()
         {
-
             Application.Quit();
         }
 
@@ -67,7 +89,15 @@ namespace Michsky.UI.Dark
             if (isTransitioning == false)
             {
                 isTransitioning = true;
-                Invoke("QuitGame", transitionDelay);
+
+                if (useFadeTransition && SceneFadeController.Instance != null)
+                {
+                    StartCoroutine(QuitGameWithFade());
+                }
+                else
+                {
+                    Invoke("QuitGame", transitionDelay);
+                }
             }
         }
 
@@ -75,5 +105,32 @@ namespace Michsky.UI.Dark
         {
             SceneManager.LoadScene(gameSceneName);
         }
+
+        
+        private IEnumerator LoadGameWithFade()
+        {
+            yield return new WaitForSeconds(transitionDelay);
+            yield return StartCoroutine(SceneFadeController.Instance.FadeOut());
+            LoadGame();
+        }
+
+        private IEnumerator LoadSceneWithFade(string sceneName)
+        {
+            yield return StartCoroutine(SceneFadeController.Instance.FadeOut());
+            SceneManager.LoadScene(sceneName);
+        }
+
+        private IEnumerator LoadSceneWithFade(int sceneIndex)
+        {
+            yield return StartCoroutine(SceneFadeController.Instance.FadeOut());
+            SceneManager.LoadScene(sceneIndex);
+        }
+
+        private IEnumerator QuitGameWithFade()
+        {
+            yield return new WaitForSeconds(transitionDelay);
+            yield return StartCoroutine(SceneFadeController.Instance.FadeOut());
+            QuitGame();
+        }
     }
-}
+} 

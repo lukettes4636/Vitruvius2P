@@ -76,7 +76,7 @@ Material:
     - _MainTex_1: 0.8
     - _QueueControl: 0
     m_Colors:
-    - _MainTex: {r: 0.21698111, g: 0.004093983, b: 0, a: 0}
+    - _MainTex: {r: 0.7735849, g: 0.61667854, b: 0.61667854, a: 0}
     - _TextColor: {r: 1, g: 0, b: 0.025919914, a: 0}
   m_BuildTextureStacks: []
 --- !u!114 &11400000

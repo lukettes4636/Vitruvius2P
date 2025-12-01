@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 using TMPro;
 
@@ -6,14 +6,13 @@ public class PlayerPopupBillboard : MonoBehaviour
 {
     [Header("Panel del popup (World Space)")]
     [SerializeField] private GameObject popupPanel;
-    
-    
+
     public GameObject GetPopupPanel() => popupPanel;
 
     [Header("Texto dentro del popup")]
     [SerializeField] private TextMeshProUGUI popupText;
     [Tooltip("Tamano de fuente del texto. Ajusta este valor si el texto no entra bien en el canvas.")]
-    public float fontSize = 30f; 
+    public float fontSize = 30f;
 
     [Header("Duracin de la animacin")]
     [SerializeField] private float appearDuration = 0.2f;
@@ -25,19 +24,19 @@ public class PlayerPopupBillboard : MonoBehaviour
     [SerializeField] private float lateralOffset = 0f;
     [Tooltip("Velocidad de transicion del offset lateral (mayor = mas rapido).")]
     [SerializeField] private float offsetTransitionSpeed = 5f;
-    
+
     [Header("Tamano del Canvas (para calculo automatico)")]
     [Tooltip("Ancho estimado del canvas en unidades del mundo. Si es 0, se calcula automaticamente.")]
     [SerializeField] private float canvasWidth = 0f;
     [Tooltip("Alto estimado del canvas en unidades del mundo. Si es 0, se calcula automaticamente.")]
-    [SerializeField] private float canvasHeight = 0f; 
+    [SerializeField] private float canvasHeight = 0f;
 
     private Coroutine currentRoutine;
     private Coroutine offsetTransitionCoroutine;
     private Vector3 originalScale;
     private Camera mainCam;
     private float currentLateralOffset = 0f;
-    private float targetLateralOffset = 0f; 
+    private float targetLateralOffset = 0f;
 
     void Start()
     {
@@ -48,10 +47,6 @@ public class PlayerPopupBillboard : MonoBehaviour
             originalScale = popupPanel.transform.localScale;
             popupPanel.SetActive(false);
         }
-        else
-        {
-
-        }
 
         if (popupText == null)
             popupText = GetComponentInChildren<TextMeshProUGUI>();
@@ -61,44 +56,40 @@ public class PlayerPopupBillboard : MonoBehaviour
     {
         if (popupPanel != null && popupPanel.activeSelf && mainCam != null)
         {
-            
             lateralOffset = currentLateralOffset;
-            
+
             Vector3 basePosition = transform.position + Vector3.up * verticalOffset;
-            
+
             if (lateralOffset != 0f)
             {
                 Vector3 cameraRight = mainCam.transform.right;
                 basePosition += cameraRight * lateralOffset;
             }
-            
+
             popupPanel.transform.position = basePosition;
-            
+
             Vector3 lookDirection = mainCam.transform.position - popupPanel.transform.position;
             lookDirection.y = 0;
             popupPanel.transform.rotation = Quaternion.LookRotation(-lookDirection);
         }
     }
-    
-    
-    
-    
+
     public void SetLateralOffset(float offset)
     {
         targetLateralOffset = offset;
-        
+
         if (offsetTransitionCoroutine != null)
             StopCoroutine(offsetTransitionCoroutine);
-        
+
         offsetTransitionCoroutine = StartCoroutine(SmoothLateralOffsetTransition());
     }
-    
+
     private IEnumerator SmoothLateralOffsetTransition()
     {
         float startOffset = currentLateralOffset;
         float elapsedTime = 0f;
         float duration = 1f / offsetTransitionSpeed;
-        
+
         while (elapsedTime < duration)
         {
             elapsedTime += Time.deltaTime;
@@ -106,42 +97,34 @@ public class PlayerPopupBillboard : MonoBehaviour
             currentLateralOffset = Mathf.Lerp(startOffset, targetLateralOffset, t);
             yield return null;
         }
-        
+
         currentLateralOffset = targetLateralOffset;
         offsetTransitionCoroutine = null;
     }
-    
-    
-    
-    
+
     public Vector2 GetCanvasWorldSize()
     {
         Vector2 size = Vector2.zero;
-        
+
         if (popupPanel != null)
         {
             RectTransform panelRect = popupPanel.GetComponent<RectTransform>();
             if (panelRect != null)
             {
-                
                 Vector3 localScale = popupPanel.transform.lossyScale;
                 size = new Vector2(
-                    panelRect.rect.width * localScale.x, 
+                    panelRect.rect.width * localScale.x,
                     panelRect.rect.height * localScale.y
                 );
             }
         }
-        
-        
-        if (size.x == 0f) size.x = canvasWidth > 0f ? canvasWidth : 2f; 
-        if (size.y == 0f) size.y = canvasHeight > 0f ? canvasHeight : 1f; 
-        
+
+        if (size.x == 0f) size.x = canvasWidth > 0f ? canvasWidth : 2f;
+        if (size.y == 0f) size.y = canvasHeight > 0f ? canvasHeight : 1f;
+
         return size;
     }
-    
-    
-    
-    
+
     public Vector3 GetCanvasWorldPosition()
     {
         if (popupPanel != null)
@@ -149,11 +132,43 @@ public class PlayerPopupBillboard : MonoBehaviour
         return transform.position + Vector3.up * verticalOffset;
     }
 
-    public void ShowMessage(string message, float time = 2f)
+    
+    
+    
+    
+    public void UpdateTextInstant(string message)
     {
         if (popupPanel == null || popupText == null) return;
 
         
+        popupText.fontSize = fontSize;
+        popupText.text = message;
+
+        
+        if (popupPanel.activeSelf && popupPanel.transform.localScale == originalScale)
+        {
+            
+            return;
+        }
+
+        
+        if (currentRoutine != null)
+            StopCoroutine(currentRoutine);
+
+        popupPanel.SetActive(true);
+        popupPanel.transform.localScale = originalScale; 
+
+        
+        currentRoutine = null;
+    }
+
+    
+    
+    
+    public void ShowMessage(string message, float time = 2f)
+    {
+        if (popupPanel == null || popupText == null) return;
+
         popupText.fontSize = fontSize;
         popupText.text = message;
 

@@ -1,5 +1,7 @@
-﻿using UnityEngine;
-using UnityEngine.VFX; 
+using UnityEngine;
+using UnityEngine.VFX;
+using System.Reflection;
+using System.Linq; 
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerNoiseEmitter : MonoBehaviour
@@ -10,45 +12,81 @@ public class PlayerNoiseEmitter : MonoBehaviour
     public float crouchNoiseRadius = 2f;
     public float runNoiseRadius = 6f;
 
-    [Header("Visual Feedback")]
-    public VisualEffect noiseVFX; 
-    public string vfxRadiusProperty = "Radius"; 
-    public float visualLerpSpeed = 5f; 
+    [Header("Visual Feedback (VFX)")]
+    public VisualEffect noiseVFX;
+    public string vfxRadiusProperty = "Radius";
+    public string vfxPulseProperty = "PulseSpeed";
+    public float visualLerpSpeed = 5f;
+
+    [Header("Configuracin de Pulsacin")]
+    public float idlePulseSpeed = 2f;
+    public float walkPulseSpeed = 8f;
+    public float runPulseSpeed = 18f;
 
     [Header("Debug")]
     public bool showNoiseGizmo = true;
     public Color noiseColor = new Color(1f, 0.6f, 0f, 0.25f);
+    public float debugLogInterval = 1f; 
+    private float lastLogTime;
 
     [HideInInspector] public float currentNoiseRadius = 0f;
 
     private CharacterController controller;
-    private float visualRadius = 0f; 
+    private float visualRadius = 0f;
 
     
     private object activeMovementScript;
-    private System.Reflection.FieldInfo isMovingField, isRunningField, isCrouchingField;
-    private bool initialized = false;
+    private FieldInfo isMovingField;
+    private FieldInfo isRunningField;
+    private FieldInfo isCrouchingField;
+    private bool reflectionInitialized = false;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
         InitializeReflection();
+
+        if (noiseVFX != null)
+        {
+            noiseVFX.Play();
+        }
+        lastLogTime = Time.time;
     }
 
+    
+    
+    
     void InitializeReflection()
     {
-        var m1 = GetComponent("MovJugador1");
-        var m2 = GetComponent("MovJugador2");
-        if (m1 != null) activeMovementScript = m1;
-        else if (m2 != null) activeMovementScript = m2;
+        
+        Component[] components = GetComponents<Component>();
+
+        
+        activeMovementScript = components.FirstOrDefault(c =>
+            c != null && (c.GetType().Name == "MovJugador1" || c.GetType().Name == "MovJugador2"));
 
         if (activeMovementScript != null)
         {
-            var t = activeMovementScript.GetType();
-            isMovingField = t.GetField("isMoving", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            isRunningField = t.GetField("isRunningInput", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            isCrouchingField = t.GetField("isCrouching", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            initialized = true;
+            var type = activeMovementScript.GetType();
+
+
+            
+            const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public;
+
+            isMovingField = type.GetField("isMoving", flags);
+            isRunningField = type.GetField("isRunningInput", flags); 
+            isCrouchingField = type.GetField("isCrouching", flags);
+
+
+
+
+
+            reflectionInitialized = isMovingField != null && isRunningField != null && isCrouchingField != null;
+        }
+        else
+        {
+
+            reflectionInitialized = false;
         }
     }
 
@@ -56,34 +94,77 @@ public class PlayerNoiseEmitter : MonoBehaviour
     {
         CalculateLogicRadius();
         UpdateVFX();
+
+        if (Time.time > lastLogTime + debugLogInterval)
+        {
+            LogCurrentState();
+            lastLogTime = Time.time;
+        }
     }
 
-    void CalculateLogicRadius()
+    void LogCurrentState()
     {
-        bool isMoving = false, isRunning = false, isCrouching = false;
-
-        if (initialized)
+        if (reflectionInitialized)
         {
-            if (isMovingField != null) isMoving = (bool)isMovingField.GetValue(activeMovementScript);
-            if (isRunningField != null) isRunning = (bool)isRunningField.GetValue(activeMovementScript);
-            if (isCrouchingField != null) isCrouching = (bool)isCrouchingField.GetValue(activeMovementScript);
+            bool isMoving = (bool)isMovingField.GetValue(activeMovementScript);
+            bool isRunning = (bool)isRunningField.GetValue(activeMovementScript);
+            bool isCrouching = (bool)isCrouchingField.GetValue(activeMovementScript);
+
+
         }
         else
+        {
+
+        }
+    }
+
+    
+    
+    
+    void CalculateLogicRadius()
+    {
+        bool isMoving = false;
+        bool isRunning = false;
+        bool isCrouching = false;
+
+        if (reflectionInitialized)
+        {
+            try
+            {
+                isMoving = (bool)isMovingField.GetValue(activeMovementScript);
+                isRunning = (bool)isRunningField.GetValue(activeMovementScript);
+                isCrouching = (bool)isCrouchingField.GetValue(activeMovementScript);
+            }
+            catch (System.Exception ex)
+            {
+                
+
+                reflectionInitialized = false;
+            }
+        }
+
+        
+        if (!reflectionInitialized)
         {
             isMoving = controller.velocity.magnitude > 0.1f;
         }
 
-        float target = idleNoiseRadius;
+        
+        float targetRadius = idleNoiseRadius;
+
         if (isMoving)
         {
-            if (isRunning) target = runNoiseRadius;
-            else if (isCrouching) target = crouchNoiseRadius;
-            else target = walkNoiseRadius;
+            if (isRunning) targetRadius = runNoiseRadius;
+            else if (isCrouching) targetRadius = crouchNoiseRadius;
+            else targetRadius = walkNoiseRadius;
         }
 
-        currentNoiseRadius = target;
+        currentNoiseRadius = targetRadius;
     }
 
+    
+    
+    
     void UpdateVFX()
     {
         if (noiseVFX == null) return;
@@ -95,15 +176,18 @@ public class PlayerNoiseEmitter : MonoBehaviour
         noiseVFX.SetFloat(vfxRadiusProperty, visualRadius);
 
         
+        float targetPulse = idlePulseSpeed;
+
+        if (currentNoiseRadius >= runNoiseRadius - 0.1f)
+            targetPulse = runPulseSpeed;
+        else if (currentNoiseRadius >= walkNoiseRadius - 0.1f)
+            targetPulse = walkPulseSpeed;
+
         
-        if (currentNoiseRadius <= idleNoiseRadius)
-        {
-            noiseVFX.SetFloat("SpawnRate", 10); 
-        }
-        else
-        {
-            noiseVFX.SetFloat("SpawnRate", 100);
-        }
+        noiseVFX.SetFloat(vfxPulseProperty, targetPulse);
+
+        
+        noiseVFX.enabled = visualRadius > 0.1f;
     }
 
     void OnDrawGizmosSelected()

@@ -71,6 +71,7 @@ public class MovJugador2 : MonoBehaviour
     private Vector2 moveInput;
     private bool isRunningInput = false;
     private bool isCrouching = false;
+    private bool isMoving = false;
 
     private float currentStamina;
     private float cooldownTimer = 0f;
@@ -455,13 +456,13 @@ public class MovJugador2 : MonoBehaviour
         }
 
         float desiredSpeed;
-        bool isMoving = moveInput.magnitude > 0.1f;
+        isMoving = moveInput.magnitude > 0.1f;
 
-        
-        
-        
 
-        
+
+
+
+
         if (currentStamina < maxStamina && !isRunningInput)
         {
             float previousStamina = currentStamina;
