@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.VFX;
@@ -23,6 +23,10 @@ public class MovJugador1 : MonoBehaviour
     [SerializeField] private float runCooldown = 4f;
     [SerializeField] private float staminaDepletionRate = 12f;
     [SerializeField] private float staminaRechargeRate = 12f;
+
+    [Header("Procedural Animation (Fatiga)")]
+    [Tooltip("Referencia al script que controla el Rigging de cansancio.")]
+    [SerializeField] private StaminaFatigueFeedback fatigueFeedback;
 
     [Header("Aceleracion")]
     [SerializeField] private float acceleration = 12f;
@@ -113,6 +117,9 @@ public class MovJugador1 : MonoBehaviour
         playerInventory = GetComponent<PlayerInventory>();
         staminaUI = GetComponent<PlayerStaminaUI>();
 
+        
+        if (fatigueFeedback == null) fatigueFeedback = GetComponent<StaminaFatigueFeedback>();
+
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
         currentStamina = maxStamina;
@@ -167,7 +174,6 @@ public class MovJugador1 : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        
         FallenDoor doorScript = other.GetComponent<FallenDoor>();
         if (doorScript != null)
             currentDoorToLift = doorScript;
@@ -521,6 +527,7 @@ public class MovJugador1 : MonoBehaviour
         float desiredSpeed;
         bool moving = moveInput.magnitude > 0.1f;
 
+        
         if (currentStamina < maxStamina && !isRunningInput)
         {
             float previousStamina = currentStamina;
@@ -541,6 +548,7 @@ public class MovJugador1 : MonoBehaviour
             }
         }
 
+        
         if (currentStamina <= 0 && canRun)
         {
             canRun = false;
@@ -553,7 +561,13 @@ public class MovJugador1 : MonoBehaviour
                 staminaUI.HideStaminaBar();
             }
 
+            
             if (animator != null) animator.SetBool(tiredAnimationBool, true);
+
+            
+            if (fatigueFeedback != null) fatigueFeedback.SetExhausted(true);
+
+            
             if (audioSource != null && pantingSound != null)
             {
                 audioSource.clip = pantingSound;
@@ -565,15 +579,24 @@ public class MovJugador1 : MonoBehaviour
         if (!moving && isRunningInput)
             isRunningInput = false;
 
+        
         if (!canRun)
         {
             cooldownTimer -= Time.deltaTime;
+
+            
             if (cooldownTimer <= 0)
             {
                 canRun = true;
                 currentStamina = maxStamina;
 
+                
                 if (animator != null) animator.SetBool(tiredAnimationBool, false);
+
+                
+                if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
+
+                
                 if (audioSource != null && audioSource.isPlaying && audioSource.clip == pantingSound)
                 {
                     audioSource.Stop();
@@ -593,6 +616,7 @@ public class MovJugador1 : MonoBehaviour
             }
         }
 
+        
         if (!canRun)
         {
             desiredSpeed = 0f;
@@ -692,6 +716,9 @@ public class MovJugador1 : MonoBehaviour
         }
         wasRunning = false;
 
+        
+        if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
+
         if (animator != null)
         {
             animator.SetFloat("Speed", 0f);
@@ -714,6 +741,9 @@ public class MovJugador1 : MonoBehaviour
         isCrouching = false;
         verticalVelocity.y = -5f;
         wasRunning = false;
+
+        
+        if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
 
         if (staminaUI != null)
         {

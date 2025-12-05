@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.VFX;
@@ -23,6 +23,10 @@ public class MovJugador2 : MonoBehaviour
     [SerializeField] private float runCooldown = 4f;
     [SerializeField] private float staminaDepletionRate = 12f;
     [SerializeField] private float staminaRechargeRate = 12f;
+
+    [Header("Procedural Animation (Fatiga)")]
+    [Tooltip("Referencia al script que controla el Rigging de cansancio.")]
+    [SerializeField] private StaminaFatigueFeedback fatigueFeedback;
 
     [Header("Aceleracion")]
     [SerializeField] private float acceleration = 12f;
@@ -99,14 +103,11 @@ public class MovJugador2 : MonoBehaviour
     private PuertaDobleAccion currentDoor = null;
     private PuertaDobleConLlave currentKeyDoor = null;
 
-    
     private FallenDoor currentDoorToLift = null;
     private bool isHoldingDoor = false;
-    
     private bool isAnimationInLiftState = false;
     private float liftButtonHoldTime = 0f;
     private bool liftButtonPressed = false;
-    
 
     private Transform cameraTransform;
     private Vector3 originalCameraPosition;
@@ -119,6 +120,9 @@ public class MovJugador2 : MonoBehaviour
         animator = GetComponent<Animator>();
         playerInventory = GetComponent<PlayerInventory>();
         staminaUI = GetComponent<PlayerStaminaUI>();
+
+        
+        if (fatigueFeedback == null) fatigueFeedback = GetComponent<StaminaFatigueFeedback>();
 
         if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
@@ -213,7 +217,7 @@ public class MovJugador2 : MonoBehaviour
         if (doorScript != null && doorScript == currentDoorToLift)
         {
             currentDoorToLift = null;
-            
+
             if (isHoldingDoor || isAnimationInLiftState)
             {
                 OnLiftDoorReleased();
@@ -243,10 +247,6 @@ public class MovJugador2 : MonoBehaviour
         }
     }
 
-    
-    
-    
-
     private void OnLiftDoorPressed()
     {
         if (currentDoorToLift == null || isInUI || isAnimationInLiftState) return;
@@ -261,21 +261,17 @@ public class MovJugador2 : MonoBehaviour
         liftButtonPressed = false;
         liftButtonHoldTime = 0f;
 
-        
         if (isAnimationInLiftState)
         {
-            
             if (currentDoorToLift != null)
             {
                 currentDoorToLift.StopLifting();
             }
 
-            
             animator.SetBool("ShouldCancelLift", true);
             animator.SetBool("IsStartingLift", false);
             animator.SetBool("IsLifting", false);
 
-            
             StopCoroutine("RecoverFromCancel");
             StartCoroutine("RecoverFromCancel");
         }
@@ -308,8 +304,6 @@ public class MovJugador2 : MonoBehaviour
         animator.SetBool("ShouldCancelLift", false);
     }
 
-    
-
     public void StartDoorLiftEvent()
     {
         if (currentDoorToLift != null && isHoldingDoor)
@@ -328,7 +322,6 @@ public class MovJugador2 : MonoBehaviour
         }
     }
 
-    
     public void OnDoorLiftAnimationComplete()
     {
         StopDoorLiftEvent();
@@ -340,14 +333,9 @@ public class MovJugador2 : MonoBehaviour
         animator.SetBool("IsLifting", false);
         animator.SetBool("ShouldCancelLift", false);
 
-        
         if (popupBillboard != null)
         {
             popupBillboard.ShowMessage("I can't lift this...", 2f);
-        }
-        else
-        {
-
         }
     }
 
@@ -365,10 +353,6 @@ public class MovJugador2 : MonoBehaviour
         if (currentDoor == door)
             currentDoor = null;
     }
-
-    
-    
-    
 
     public void StartCooperativeEffects(float shakeDuration, float shakeMagnitude, float lowFrequency, float highFrequency, float rumbleDuration)
     {
@@ -562,6 +546,9 @@ public class MovJugador2 : MonoBehaviour
         }
         wasRunning = false;
 
+        
+        if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
+
         if (animator != null)
         {
             animator.SetFloat("Speed", 0f);
@@ -587,6 +574,9 @@ public class MovJugador2 : MonoBehaviour
         verticalVelocity.y = -5f;
         wasRunning = false;
 
+        
+        if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
+
         if (staminaUI != null)
         {
             staminaUI.HideImmediate();
@@ -611,6 +601,7 @@ public class MovJugador2 : MonoBehaviour
         float desiredSpeed;
         isMoving = moveInput.magnitude > 0.1f;
 
+        
         if (currentStamina < maxStamina && !isRunningInput)
         {
             float previousStamina = currentStamina;
@@ -632,6 +623,7 @@ public class MovJugador2 : MonoBehaviour
             }
         }
 
+        
         if (currentStamina <= 0 && canRun)
         {
             canRun = false;
@@ -645,6 +637,10 @@ public class MovJugador2 : MonoBehaviour
             }
 
             if (animator != null) animator.SetBool(tiredAnimationBool, true);
+
+            
+            if (fatigueFeedback != null) fatigueFeedback.SetExhausted(true);
+
             if (audioSource != null && pantingSound != null)
             {
                 audioSource.clip = pantingSound;
@@ -658,6 +654,7 @@ public class MovJugador2 : MonoBehaviour
             isRunningInput = false;
         }
 
+        
         if (!canRun)
         {
             cooldownTimer -= Time.deltaTime;
@@ -667,6 +664,10 @@ public class MovJugador2 : MonoBehaviour
                 currentStamina = maxStamina;
 
                 if (animator != null) animator.SetBool(tiredAnimationBool, false);
+
+                
+                if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
+
                 if (audioSource != null && audioSource.isPlaying && audioSource.clip == pantingSound)
                 {
                     audioSource.Stop();
@@ -686,6 +687,7 @@ public class MovJugador2 : MonoBehaviour
             }
         }
 
+        
         if (!canRun)
         {
             desiredSpeed = 0f;
