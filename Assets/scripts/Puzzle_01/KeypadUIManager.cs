@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using TMPro;
 using UnityEngine.InputSystem;
@@ -17,6 +17,11 @@ public class KeypadUIManager : MonoBehaviour
 
     [Header("Configuracin")]
     [SerializeField] private float navigateCooldown = 0.2f;
+
+    [Header("Audio")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip correctSound;
+    [SerializeField] private AudioClip incorrectSound;
 
     private string enteredCode = "";
     private int selectedIndex = 0;
@@ -109,11 +114,17 @@ public class KeypadUIManager : MonoBehaviour
     {
         if (enteredCode == correctCode)
         {
+            if (audioSource != null && correctSound != null)
+                audioSource.PlayOneShot(correctSound);
+
             displayText.text = "Correcto";
             StartCoroutine(CorrectSequence());
         }
         else
         {
+            if (audioSource != null && incorrectSound != null)
+                audioSource.PlayOneShot(incorrectSound);
+
             displayText.text = "Incorrecto";
             StartCoroutine(ResetAfterDelay());
         }
