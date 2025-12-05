@@ -234,7 +234,7 @@ public class PuertaDobleAccion : MonoBehaviour
 
     private void HandleShaderUpdate()
     {
-        if (puzzleFullscreenMat == null)
+        if (puzzleFullscreenMat == null || jugadoresEnTrigger == null)
         {
             return;
         }

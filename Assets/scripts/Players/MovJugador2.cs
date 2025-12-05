@@ -63,6 +63,12 @@ public class MovJugador2 : MonoBehaviour
     [Tooltip("Clip de sonido de paso para agacharse.")]
     [SerializeField] private AudioClip crouchFootstepClip;
 
+    [Header("Tired State")]
+    [Tooltip("Nombre del bool en el Animator para la animacion de cansado")]
+    [SerializeField] private string tiredAnimationBool = "IsTired";
+    [SerializeField] private AudioClip pantingSound;
+    [SerializeField] private AudioSource audioSource;
+
     [Header("Popup Flotante sobre cabeza")]
     [Tooltip("Arrastra aqui el objeto que tiene el script PlayerPopupBillboard")]
     [SerializeField] private PlayerPopupBillboard popupBillboard;
@@ -113,6 +119,8 @@ public class MovJugador2 : MonoBehaviour
         animator = GetComponent<Animator>();
         playerInventory = GetComponent<PlayerInventory>();
         staminaUI = GetComponent<PlayerStaminaUI>();
+
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
         currentStamina = maxStamina;
 
@@ -629,12 +637,19 @@ public class MovJugador2 : MonoBehaviour
             canRun = false;
             cooldownTimer = runCooldown;
             staminaWasEmpty = true;
-
             isRunningInput = false;
 
             if (staminaUI != null)
             {
                 staminaUI.HideStaminaBar();
+            }
+
+            if (animator != null) animator.SetBool(tiredAnimationBool, true);
+            if (audioSource != null && pantingSound != null)
+            {
+                audioSource.clip = pantingSound;
+                audioSource.loop = true;
+                audioSource.Play();
             }
         }
 
@@ -651,6 +666,13 @@ public class MovJugador2 : MonoBehaviour
                 canRun = true;
                 currentStamina = maxStamina;
 
+                if (animator != null) animator.SetBool(tiredAnimationBool, false);
+                if (audioSource != null && audioSource.isPlaying && audioSource.clip == pantingSound)
+                {
+                    audioSource.Stop();
+                    audioSource.loop = false;
+                }
+
                 if (staminaUI != null)
                 {
                     staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
@@ -664,7 +686,11 @@ public class MovJugador2 : MonoBehaviour
             }
         }
 
-        if (isCrouching)
+        if (!canRun)
+        {
+            desiredSpeed = 0f;
+        }
+        else if (isCrouching)
         {
             desiredSpeed = crouchSpeed;
 

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.VFX;
@@ -59,6 +59,12 @@ public class MovJugador1 : MonoBehaviour
     [Tooltip("Clip de sonido de paso para agacharse.")]
     public AudioClip crouchFootstepClip;
 
+    [Header("Tired State")]
+    [Tooltip("Nombre del bool en el Animator para la animacion de cansado")]
+    [SerializeField] private string tiredAnimationBool = "IsTired";
+    [SerializeField] private AudioClip pantingSound;
+    [SerializeField] private AudioSource audioSource;
+
     [Header("Popup Flotante sobre cabeza")]
     [SerializeField] private PlayerPopupBillboard popupBillboard;
 
@@ -106,6 +112,8 @@ public class MovJugador1 : MonoBehaviour
         animator = GetComponent<Animator>();
         playerInventory = GetComponent<PlayerInventory>();
         staminaUI = GetComponent<PlayerStaminaUI>();
+
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
 
         currentStamina = maxStamina;
 
@@ -544,6 +552,14 @@ public class MovJugador1 : MonoBehaviour
             {
                 staminaUI.HideStaminaBar();
             }
+
+            if (animator != null) animator.SetBool(tiredAnimationBool, true);
+            if (audioSource != null && pantingSound != null)
+            {
+                audioSource.clip = pantingSound;
+                audioSource.loop = true;
+                audioSource.Play();
+            }
         }
 
         if (!moving && isRunningInput)
@@ -556,6 +572,13 @@ public class MovJugador1 : MonoBehaviour
             {
                 canRun = true;
                 currentStamina = maxStamina;
+
+                if (animator != null) animator.SetBool(tiredAnimationBool, false);
+                if (audioSource != null && audioSource.isPlaying && audioSource.clip == pantingSound)
+                {
+                    audioSource.Stop();
+                    audioSource.loop = false;
+                }
 
                 if (staminaUI != null)
                 {
@@ -570,7 +593,11 @@ public class MovJugador1 : MonoBehaviour
             }
         }
 
-        if (isCrouching)
+        if (!canRun)
+        {
+            desiredSpeed = 0f;
+        }
+        else if (isCrouching)
         {
             desiredSpeed = crouchSpeed;
         }
