@@ -101,6 +101,7 @@ public class KeypadDoorController : MonoBehaviour
             SetOutlineState(activePlayers[0].PlayerOutlineColor, activeOutlineScale);
         else
             SetOutlineState(cooperativeOutlineColor, activeOutlineScale);
+        UpdatePromptVisuals();
     }
 
 
@@ -280,6 +281,14 @@ public class KeypadDoorController : MonoBehaviour
     {
         if (interactPromptCanvas != null)
             interactPromptCanvas.SetActive(state && !isActive && !isOpen);
+        if (state) UpdatePromptVisuals();
+    }
+
+    private void UpdatePromptVisuals()
+    {
+        if (interactPromptCanvas == null) return;
+        Color c = PromptVisualHelper.ComputeColor(activePlayers, cooperativeOutlineColor);
+        PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
     }
 
     private void PositionCanvasOnScreen(GameObject canvas)

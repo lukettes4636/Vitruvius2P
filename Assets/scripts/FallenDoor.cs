@@ -155,8 +155,23 @@ public class FallenDoor : InteractiveObject
     private void UpdatePrompt()
     {
         if (promptCanvas == null || promptText == null) return;
-        if (playersInTrigger.Count > 0) { promptCanvas.enabled = true; promptText.text = "HOLD (X) TO LIFT"; }
-        else promptCanvas.enabled = false;
+        if (playersInTrigger.Count > 0) {
+            promptCanvas.enabled = true;
+            promptText.text = "HOLD    TO LIFT";
+            UpdatePromptVisuals();
+        }
+        else {
+            promptCanvas.enabled = false;
+        }
+    }
+
+    private void UpdatePromptVisuals()
+    {
+        if (promptCanvas != null)
+        {
+            Color c = PromptVisualHelper.ComputeColor(playersInTrigger, mixedColor);
+            PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+        }
     }
 
     

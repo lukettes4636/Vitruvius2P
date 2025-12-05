@@ -98,6 +98,8 @@ public class PickableItem : MonoBehaviour
         if (promptCanvas != null && promptText != null)
         {
             promptCanvas.enabled = true;
+            Color c = PromptVisualHelper.ComputeColor(hoveringPlayers, cooperativeOutlineColor);
+            PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
         }
     }
 
@@ -129,6 +131,11 @@ public class PickableItem : MonoBehaviour
                         break;
                     }
                 }
+            }
+            if (promptCanvas != null)
+            {
+                Color c = PromptVisualHelper.ComputeColor(hoveringPlayers, cooperativeOutlineColor);
+                PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
             }
         }
     }

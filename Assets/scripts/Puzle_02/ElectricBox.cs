@@ -152,6 +152,7 @@ public class ElectricBox : MonoBehaviour
             PlayerInventory inventory = other.GetComponent<PlayerInventory>();
             if (inventory != null && inventory.HasItem(requiredItemID) && isPowerOn)
             {
+                UpdatePromptVisuals();
                 ShowPrompt(true);
             }
             
@@ -179,8 +180,10 @@ public class ElectricBox : MonoBehaviour
             {
                 ShowPrompt(false);
             }
-            
-            
+            else
+            {
+                UpdatePromptVisuals();
+            }
         }
     }
     
@@ -288,8 +291,20 @@ public class ElectricBox : MonoBehaviour
     {
         if (interactPromptCanvas != null)
         {
-            
+            if (state)
+            {
+                UpdatePromptVisuals();
+            }
             interactPromptCanvas.SetActive(state && isPowerOn && !isAnimating);
+        }
+    }
+
+    private void UpdatePromptVisuals()
+    {
+        if (interactPromptCanvas != null)
+        {
+            Color c = PromptVisualHelper.ComputeColor(activePlayers, cooperativeOutlineColor);
+            PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
         }
     }
     

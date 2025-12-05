@@ -864,6 +864,7 @@ public class PuertaDobleAccion : MonoBehaviour
             {
                 promptCanvas.enabled = true;
                 promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
+                UpdatePromptVisuals();
             }
 
             isCoopMessageShown = false;
@@ -974,6 +975,15 @@ public class PuertaDobleAccion : MonoBehaviour
         else if (jugadoresEnTrigger.Count == 0 && promptCanvas != null)
         {
             promptCanvas.enabled = false;
+        }
+    }
+
+    private void UpdatePromptVisuals()
+    {
+        if (promptCanvas != null)
+        {
+            Color c = PromptVisualHelper.ComputeColor(jugadoresEnTrigger, cooperativeOutlineColor);
+            PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
         }
     }
 

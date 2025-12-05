@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using TMPro;
 
@@ -30,6 +30,8 @@ public class PlayerPopupBillboard : MonoBehaviour
     [SerializeField] private float canvasWidth = 0f;
     [Tooltip("Alto estimado del canvas en unidades del mundo. Si es 0, se calcula automaticamente.")]
     [SerializeField] private float canvasHeight = 0f;
+
+    
 
     private Coroutine currentRoutine;
     private Coroutine offsetTransitionCoroutine;
@@ -72,6 +74,8 @@ public class PlayerPopupBillboard : MonoBehaviour
             lookDirection.y = 0;
             popupPanel.transform.rotation = Quaternion.LookRotation(-lookDirection);
         }
+
+        
     }
 
     public void SetLateralOffset(float offset)
@@ -226,4 +230,6 @@ public class PlayerPopupBillboard : MonoBehaviour
             StopCoroutine(currentRoutine);
         StartCoroutine(HidePopup());
     }
+
+    
 }

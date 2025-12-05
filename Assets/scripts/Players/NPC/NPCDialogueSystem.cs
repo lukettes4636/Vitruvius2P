@@ -28,6 +28,9 @@ public class NPCDialogueSystem : MonoBehaviour
     [SerializeField] private float interactionRange = 3f;
     [SerializeField] private GameObject interactPromptCanvas;
 
+    [Header("Prompt Visuals")]
+    [SerializeField] private Color cooperativeOutlineColor = Color.yellow;
+
     [Header("Input Actions")]
     [SerializeField] private InputActionReference player1ActionButton;
     [SerializeField] private InputActionReference player2ActionButton;
@@ -39,6 +42,9 @@ public class NPCDialogueSystem : MonoBehaviour
     [Header("Visual Feedback")]
     [SerializeField] private Color selectedColor = new Color(1f, 0.84f, 0f);
     [SerializeField] private Color unselectedColor = Color.white;
+    [SerializeField] private bool enableSelectedPulse = true;
+    [SerializeField] private float selectedPulseSpeed = 4f;
+    [SerializeField] private float selectedPulseAmount = 0.15f;
 
     [Header("Canvas Arrangement")]
     [SerializeField] private bool autoArrangeCanvases = true;
@@ -119,6 +125,7 @@ public class NPCDialogueSystem : MonoBehaviour
         if (isAwaitingChoice && isDialogueActive)
         {
             ProcessOptionNavigation();
+            RefreshOptionsPulse();
         }
     }
 
@@ -234,6 +241,11 @@ public class NPCDialogueSystem : MonoBehaviour
     {
         bool shouldShowPrompt = playersInRange.Count > 0 && !DialogueManager.IsDialogueActive();
         ShowInteractionPrompt(shouldShowPrompt);
+        if (shouldShowPrompt && interactPromptCanvas != null)
+        {
+            Color c = PromptVisualHelper.ComputeColor(playersInRange, cooperativeOutlineColor);
+            PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
+        }
     }
 
     #endregion
@@ -270,6 +282,7 @@ public class NPCDialogueSystem : MonoBehaviour
         currentPlayerPopup = GetPlayerPopup(playerTag);
         currentPlayerInput = playerInput;
         currentPlayerInput.SwitchCurrentActionMap("UI");
+        ApplySelectedColorForPlayer(playerTag);
 
         
         HideInteractionPrompt();
@@ -470,7 +483,8 @@ public class NPCDialogueSystem : MonoBehaviour
 
     private string BuildOptionsText(List<DialogueOption> options)
     {
-        string selectedHex = ColorUtility.ToHtmlStringRGB(selectedColor);
+        Color selColor = GetPulsedSelectedColor();
+        string selectedHex = ColorUtility.ToHtmlStringRGB(selColor);
         string unselectedHex = ColorUtility.ToHtmlStringRGB(unselectedColor);
         string result = "";
 
@@ -484,6 +498,46 @@ public class NPCDialogueSystem : MonoBehaviour
         }
 
         return result;
+    }
+
+    private void RefreshOptionsPulse()
+    {
+        if (!IsValidNodeIndex(currentNodeIndex)) return;
+        DialogueNode node = dialogueNodes[currentNodeIndex];
+        if (node.options == null || node.options.Count == 0) return;
+        string optionsText = BuildOptionsText(node.options);
+        currentPlayerPopup?.UpdateTextInstant(optionsText);
+    }
+
+    
+
+    private void ApplySelectedColorForPlayer(string playerTag)
+    {
+        if (playerTag == "Player1" && player1Object != null)
+        {
+             var id = player1Object.GetComponent<PlayerIdentifier>();
+             if (id != null) selectedColor = id.PlayerOutlineColor;
+        }
+        else if (playerTag == "Player2" && player2Object != null)
+        {
+             var id = player2Object.GetComponent<PlayerIdentifier>();
+             if (id != null) selectedColor = id.PlayerOutlineColor;
+        }
+        else
+        {
+             GameObject obj = GameObject.FindGameObjectWithTag(playerTag);
+             var id = obj != null ? obj.GetComponent<PlayerIdentifier>() : null;
+             if (id != null) selectedColor = id.PlayerOutlineColor;
+        }
+    }
+
+    private Color GetPulsedSelectedColor()
+    {
+        if (!enableSelectedPulse) return selectedColor;
+        float p = (Mathf.Sin(Time.time * selectedPulseSpeed) * 0.5f + 0.5f) * selectedPulseAmount;
+        Color.RGBToHSV(selectedColor, out float h, out float s, out float v);
+        float nv = Mathf.Clamp01(v + p);
+        return Color.HSVToRGB(h, s, nv);
     }
 
     private void SelectOption(int optionIndex)

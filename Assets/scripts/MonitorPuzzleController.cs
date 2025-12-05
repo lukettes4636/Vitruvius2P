@@ -238,6 +238,7 @@ public class MonitorPuzzleController : InteractiveObject
             if (!(player1Canvas != null && player1Canvas.gameObject.activeSelf) &&
                 !(player2Canvas != null && player2Canvas.gameObject.activeSelf))
             {
+                UpdatePromptVisuals();
                 ShowPrompt(true);
             }
             
@@ -293,8 +294,20 @@ public class MonitorPuzzleController : InteractiveObject
     {
         if (interactPromptCanvas != null)
         {
-            
+            if (state)
+            {
+                UpdatePromptVisuals();
+            }
             interactPromptCanvas.SetActive(state && activePlayers.Count > 0);
+        }
+    }
+
+    private void UpdatePromptVisuals()
+    {
+        if (interactPromptCanvas != null)
+        {
+            Color c = PromptVisualHelper.ComputeColor(activePlayers, cooperativeOutlineColor);
+            PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
         }
     }
     
