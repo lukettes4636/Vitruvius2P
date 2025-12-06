@@ -4,10 +4,15 @@ using System.Collections.Generic;
 
 public class MonitorPuzzleController : InteractiveObject
 {
+    public enum MonitorObjectKind { Computer, Note }
     [Header("Individual UI Configuration")]
     
     [SerializeField] private Canvas player1Canvas;
     [SerializeField] private Canvas player2Canvas;
+
+    [Header("Dialogue Config")]
+    [SerializeField] private MonitorObjectKind objectKind = MonitorObjectKind.Computer;
+    [SerializeField] private string monitorID = "MonitorA";
 
     
     
@@ -241,9 +246,8 @@ public class MonitorPuzzleController : InteractiveObject
                 UpdatePromptVisuals();
                 ShowPrompt(true);
             }
-            
-            
-            
+
+            DialogueManager.ShowMonitorEnterDialogue(monitorID, objectKind.ToString(), playerIdentifier.gameObject);
         }
     }
 

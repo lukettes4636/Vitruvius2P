@@ -47,6 +47,8 @@ public class WarningDoor : MonoBehaviour
             
             uiController.ShowNotification(warningMessage);
         }
+
+        DialogueManager.ShowWarningDoorEnterDialogue(other.gameObject);
     }
 
     

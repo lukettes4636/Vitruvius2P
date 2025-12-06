@@ -96,9 +96,13 @@ public class EnemyMonsterAI : MonoBehaviour
     private bool isRising = false;
     private bool isRoaring = false;
     private bool playerVisible = false;
+    private bool lastPlayerVisible = false;
     private bool returningToCrawl = false;
     private bool hasAwakened = false;
     private bool isTransitioning = false;
+    private bool hasShownFirstDetection = false;
+    public float reDetectionCooldown = 2f;
+    private float lastReDetectionTime = -999f;
 
     
     private int _roarIntensityID;
@@ -385,11 +389,26 @@ public class EnemyMonsterAI : MonoBehaviour
         currentPlayer = nearest;
         playerVisible = nearest != null;
 
+        if (playerVisible && !hadPlayer)
+        {
+            if (!hasShownFirstDetection)
+            {
+                hasShownFirstDetection = true;
+                lastReDetectionTime = Time.time;
+            }
+            else if (Time.time - lastReDetectionTime > reDetectionCooldown && currentPlayer != null)
+            {
+                DialogueManager.ShowEnemyDetectedAgainDialogue(currentPlayer.gameObject);
+                lastReDetectionTime = Time.time;
+            }
+        }
+
 
         if (!playerVisible && hadPlayer && hasAwakened &&
             !returningToCrawl && !isTransitioning &&
             (currentState == State.Chasing || currentState == State.Attacking))
         {
+            DialogueManager.ShowEnemyChaseEndedDialogue();
             StartCoroutine(ReturnToCrawl());
         }
     }
@@ -490,6 +509,11 @@ public class EnemyMonsterAI : MonoBehaviour
         anim.SetBool("isWalking", true);
 
         UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
+        if (!hasShownFirstDetection)
+        {
+            hasShownFirstDetection = true;
+            lastReDetectionTime = Time.time;
+        }
     }
 
     void ChasePlayer()
@@ -776,6 +800,7 @@ public class EnemyMonsterAI : MonoBehaviour
                 Vector3 impactDirection = transform.forward;
 
                 wallScript.Explode(impactPoint, impactDirection);
+                DialogueManager.ShowEnemyWallBreakDialogue();
 
                 currentWallTarget = null;
             }

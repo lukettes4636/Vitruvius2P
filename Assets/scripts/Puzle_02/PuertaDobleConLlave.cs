@@ -167,6 +167,10 @@ public class PuertaDobleConLlave : MonoBehaviour
                 activePlayers.Add(playerIdentifier);
             }
             UpdateOutlineVisuals();
+
+            PlayerInventory inv = other.GetComponent<PlayerInventory>();
+            bool hasKey = inv != null && inv.HasKeyCard(keyCardIDRequerida);
+            DialogueManager.ShowKeyDoorEnterDialogue(other.gameObject, hasKey);
         }
     }
 

@@ -708,6 +708,11 @@ public class PuertaDobleAccion : MonoBehaviour
             col.enabled = false;
         }
 
+        foreach (GameObject p in jugadoresEnTrigger)
+        {
+            DialogueManager.ShowPlayerMessage(p, "Door opened!", 2.5f);
+        }
+
         foreach (GameObject player in jugadoresEnTrigger)
         {
             if (player == null)

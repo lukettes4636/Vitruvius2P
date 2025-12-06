@@ -118,6 +118,7 @@ public class KeypadUIManager : MonoBehaviour
                 audioSource.PlayOneShot(correctSound);
 
             displayText.text = "Correcto";
+            DialogueManager.ShowKeypadCodeResultDialogue(activePlayerInput != null ? activePlayerInput.gameObject : null, true);
             StartCoroutine(CorrectSequence());
         }
         else
@@ -126,6 +127,7 @@ public class KeypadUIManager : MonoBehaviour
                 audioSource.PlayOneShot(incorrectSound);
 
             displayText.text = "Incorrecto";
+            DialogueManager.ShowKeypadCodeResultDialogue(activePlayerInput != null ? activePlayerInput.gameObject : null, false);
             StartCoroutine(ResetAfterDelay());
         }
     }

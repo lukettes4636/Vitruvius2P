@@ -168,6 +168,8 @@ public class PickableItem : MonoBehaviour
             uiController.ShowNotification(message);
         }
 
+        DialogueManager.ShowItemCollectionDialogue(collector, itemID, itemType == ItemType.KeyCard);
+
         if (collectEffect != null)
             Instantiate(collectEffect, transform.position, transform.rotation);
         if (collectSound != null)

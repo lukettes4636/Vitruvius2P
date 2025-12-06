@@ -47,6 +47,13 @@ public class HostileAI : MonoBehaviour
     private Vector3 lastKnownPlayerPosition;
     private float lastSightingTime;
     private bool hasMemoryOfPlayer;
+    private bool hasShownFirstDetection;
+    private bool isInChase;
+    private bool lastIsPlayerVisible;
+    private bool previousHasMemoryOfPlayer;
+    [SerializeField] private float reDetectionCooldown = 2f;
+    private float lastReDetectionTime;
+    private bool wallBreakDialogueFired;
 
     
 
@@ -83,14 +90,21 @@ public class HostileAI : MonoBehaviour
             navAgent.autoBraking = true;
         }
 
-        
+        hasShownFirstDetection = false;
+        isInChase = false;
+        lastIsPlayerVisible = false;
+        previousHasMemoryOfPlayer = false;
+        lastReDetectionTime = -999f;
+        wallBreakDialogueFired = false;
     }
 
 
     private void Update()
     {
         DetectPlayer();
+        previousHasMemoryOfPlayer = hasMemoryOfPlayer;
         UpdateMemory();
+        HandleDialogueTransitions(previousHasMemoryOfPlayer);
         UpdateBehaviourState();
     }
 
@@ -182,6 +196,43 @@ public class HostileAI : MonoBehaviour
                 hasMemoryOfPlayer = true;
             }
         }
+    }
+
+    private void HandleDialogueTransitions(bool wasHasMemory)
+    {
+        if (isPlayerVisible && !lastIsPlayerVisible)
+        {
+            if (!hasShownFirstDetection)
+            {
+                hasShownFirstDetection = true;
+                isInChase = true;
+            }
+            else if (Time.time - lastReDetectionTime > reDetectionCooldown)
+            {
+                if (currentTargetPlayer != null)
+                    DialogueManager.ShowEnemyDetectedAgainDialogue(currentTargetPlayer.gameObject);
+                lastReDetectionTime = Time.time;
+                isInChase = true;
+            }
+        }
+
+        if (wasHasMemory && !hasMemoryOfPlayer)
+        {
+            if (isInChase)
+            {
+                DialogueManager.ShowEnemyChaseEndedDialogue();
+                isInChase = false;
+            }
+        }
+
+        lastIsPlayerVisible = isPlayerVisible;
+    }
+
+    public void OnWallBroken()
+    {
+        if (wallBreakDialogueFired) return;
+        DialogueManager.ShowEnemyWallBreakDialogue();
+        wallBreakDialogueFired = true;
     }
 
     private void UpdateMemory()

@@ -39,6 +39,8 @@ public class KeypadDoorController : MonoBehaviour
 
     private MovJugador1 currentP1;
     private MovJugador2 currentP2;
+    [Header("Dialogue Config")]
+    [SerializeField] private string doorID = "KeypadDoorA";
 
     private MovJugador1 nearbyP1;
     private MovJugador2 nearbyP2;
@@ -115,6 +117,8 @@ public class KeypadDoorController : MonoBehaviour
 
         UpdateOutlineVisuals();
         ShowPrompt(true);
+
+        DialogueManager.ShowKeypadEnterDialogue(doorID, other.gameObject);
 
         if (id.playerID == 1)
         {

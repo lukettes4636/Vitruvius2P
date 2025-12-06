@@ -184,6 +184,10 @@ public class ElectricBox : MonoBehaviour
             {
                 UpdatePromptVisuals();
             }
+            bool hasLever = false;
+            PlayerInventory inv = other.GetComponent<PlayerInventory>();
+            if (inv != null) hasLever = inv.HasItem(requiredItemID);
+            DialogueManager.ShowElectricBoxEnterDialogue(other.gameObject, hasLever);
         }
     }
     
