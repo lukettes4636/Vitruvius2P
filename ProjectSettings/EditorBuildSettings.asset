@@ -5,9 +5,9 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Main Menu.unity
-    guid: fcbc224b6ecf1614283a9ab30b5ef846
+    guid: b21df858cdf466642aa7eabee3a02c55
   - enabled: 1
     path: Assets/Scenes/DaVinciPB.unity
     guid: baa59eeaf4af2234f9dd3705d0c95006
