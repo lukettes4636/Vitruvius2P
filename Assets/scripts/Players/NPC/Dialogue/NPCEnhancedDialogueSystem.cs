@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
+
 
 
 
@@ -25,6 +27,9 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
     [Header("Interaction Settings")]
     [SerializeField] private float interactionRange = 3f;
     [SerializeField] private GameObject interactPromptCanvas;
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
 
     [Header("Prompt Visuals")]
     [SerializeField] private Color cooperativeOutlineColor = Color.yellow;
@@ -51,7 +56,7 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
     [SerializeField] private float canvasArrangementUpdateRate = 0.1f;
 
     [Header("Input Settings")]
-    [SerializeField] private float navigateCooldown = 0.25f;
+    [SerializeField] private float navigateCooldown = 0.2f;
 
     #endregion
 
@@ -236,6 +241,7 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
         {
             Color c = PromptVisualHelper.ComputeColor(playersInRange, cooperativeOutlineColor);
             PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
+            UpdatePromptButtonVisuals(shouldShowPrompt);
         }
     }
 
@@ -260,7 +266,7 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
         }
 
         
-        if (!dialogueDataManager.HasDialogueAvailable(playerTag))
+        if (dialogueDataManager != null && !dialogueDataManager.HasDialogueAvailable(playerTag))
         {
             return;
         }
@@ -301,8 +307,14 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
 
     private void LoadDialogueForPlayer(string playerTag)
     {
-        
-        dialogueNodes = dialogueDataManager.GetDialogueForPlayer(playerTag);
+        if (dialogueDataManager != null)
+        {
+            dialogueNodes = dialogueDataManager.GetDialogueForPlayer(playerTag);
+        }
+        else
+        {
+            dialogueNodes = new List<DialogueNode>();
+        }
 
         if (dialogueNodes == null || dialogueNodes.Count == 0)
         {
@@ -415,7 +427,7 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
 
         Vector2 navigationInput = GetNavigationInput();
 
-        if (Mathf.Abs(navigationInput.y) > 0.5f)
+        if (Mathf.Abs(navigationInput.y) > 0.3f)
         {
             int direction = navigationInput.y > 0 ? -1 : 1;
             MoveOptionSelection(direction);
@@ -425,13 +437,18 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
 
     private Vector2 GetNavigationInput()
     {
-        if (currentPlayerTag == "Player1" && player1Navigate != null)
-            return player1Navigate.action.ReadValue<Vector2>();
+        Vector2 input = Vector2.zero;
 
-        if (currentPlayerTag == "Player2" && player2Navigate != null)
-            return player2Navigate.action.ReadValue<Vector2>();
+        if (currentPlayerTag == "Player1" && player1Navigate != null && player1Navigate.action != null)
+        {
+            input = player1Navigate.action.ReadValue<Vector2>();
+        }
+        else if (currentPlayerTag == "Player2" && player2Navigate != null && player2Navigate.action != null)
+        {
+            input = player2Navigate.action.ReadValue<Vector2>();
+        }
 
-        return Vector2.zero;
+        return input;
     }
 
     private void MoveOptionSelection(int direction)
@@ -755,12 +772,27 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
         if (interactPromptCanvas != null)
         {
             interactPromptCanvas.SetActive(show);
+            UpdatePromptButtonVisuals(show);
         }
     }
 
     private void HideInteractionPrompt()
     {
         ShowInteractionPrompt(false);
+    }
+
+    private void UpdatePromptButtonVisuals(bool show)
+    {
+        if (promptButtonImage == null) return;
+        bool active = show && interactPromptCanvas != null && interactPromptCanvas.activeSelf;
+        promptButtonImage.gameObject.SetActive(active);
+        if (active)
+        {
+            if (buttonAnchor != null)
+                promptButtonImage.rectTransform.position = buttonAnchor.position;
+            else
+                promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+        }
     }
 
     #endregion

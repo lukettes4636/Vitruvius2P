@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic; 
+using UnityEngine.UI;
 
 public class MonitorPuzzleController : InteractiveObject
 {
@@ -19,6 +20,9 @@ public class MonitorPuzzleController : InteractiveObject
     
     [Header("Interaction Prompt")]
     [SerializeField] private GameObject interactPromptCanvas; 
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
     
     
     
@@ -302,7 +306,19 @@ public class MonitorPuzzleController : InteractiveObject
             {
                 UpdatePromptVisuals();
             }
-            interactPromptCanvas.SetActive(state && activePlayers.Count > 0);
+            bool active = state && activePlayers.Count > 0;
+            interactPromptCanvas.SetActive(active);
+            if (promptButtonImage != null)
+            {
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    if (buttonAnchor != null)
+                        promptButtonImage.rectTransform.position = buttonAnchor.position;
+                    else
+                        promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+                }
+            }
         }
     }
 
@@ -312,6 +328,18 @@ public class MonitorPuzzleController : InteractiveObject
         {
             Color c = PromptVisualHelper.ComputeColor(activePlayers, cooperativeOutlineColor);
             PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
+            if (promptButtonImage != null)
+            {
+                bool active = interactPromptCanvas.activeSelf;
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    if (buttonAnchor != null)
+                        promptButtonImage.rectTransform.position = buttonAnchor.position;
+                    else
+                        promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+                }
+            }
         }
     }
     

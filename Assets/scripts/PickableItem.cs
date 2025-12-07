@@ -2,6 +2,7 @@ using UnityEngine;
 using TMPro;
 using System.Collections.Generic;
 using Random = UnityEngine.Random;
+using UnityEngine.UI;
 
 public class PickableItem : MonoBehaviour
 {
@@ -31,6 +32,9 @@ public class PickableItem : MonoBehaviour
     [Header("UI Prompt Settings")]
     [SerializeField] private Canvas promptCanvas;
     [SerializeField] private TextMeshProUGUI promptText;
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
 
     private Renderer meshRenderer;
     private MaterialPropertyBlock propertyBlock;
@@ -98,8 +102,7 @@ public class PickableItem : MonoBehaviour
         if (promptCanvas != null && promptText != null)
         {
             promptCanvas.enabled = true;
-            Color c = PromptVisualHelper.ComputeColor(hoveringPlayers, cooperativeOutlineColor);
-            PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+            UpdatePromptVisualsInternal();
         }
     }
 
@@ -112,7 +115,10 @@ public class PickableItem : MonoBehaviour
         {
             SetOutlineState(originalOutlineColor, 0f);
             if (promptCanvas != null)
+            {
                 promptCanvas.enabled = false;
+                if (promptButtonImage != null) promptButtonImage.gameObject.SetActive(false);
+            }
         }
         else
         {
@@ -134,8 +140,7 @@ public class PickableItem : MonoBehaviour
             }
             if (promptCanvas != null)
             {
-                Color c = PromptVisualHelper.ComputeColor(hoveringPlayers, cooperativeOutlineColor);
-                PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+                UpdatePromptVisualsInternal();
             }
         }
     }
@@ -178,7 +183,29 @@ public class PickableItem : MonoBehaviour
         SetOutlineState(originalOutlineColor, 0f);
         hoveringPlayers.Clear();
         if (promptCanvas != null)
+        {
             promptCanvas.enabled = false;
+            if (promptButtonImage != null) promptButtonImage.gameObject.SetActive(false);
+        }
         Destroy(gameObject);
+    }
+
+    private void UpdatePromptVisualsInternal()
+    {
+        if (promptCanvas == null) return;
+        Color c = PromptVisualHelper.ComputeColor(hoveringPlayers, cooperativeOutlineColor);
+        PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+        if (promptButtonImage != null)
+        {
+            bool active = promptCanvas.enabled;
+            promptButtonImage.gameObject.SetActive(active);
+            if (active)
+            {
+                if (buttonAnchor != null)
+                    promptButtonImage.rectTransform.position = buttonAnchor.position;
+                else
+                    promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+            }
+        }
     }
 }

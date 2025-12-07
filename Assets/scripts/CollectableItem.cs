@@ -46,6 +46,9 @@ public class CollectableItem : MonoBehaviour
     [Header("UI Prompt Settings")]
     [SerializeField] private Canvas promptCanvas;
     [SerializeField] private TextMeshProUGUI promptText;
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
     
 
     private void Start()
@@ -122,7 +125,8 @@ public class CollectableItem : MonoBehaviour
             if (promptCanvas != null && promptText != null)
             {
                 promptCanvas.enabled = true;
-                promptText.text = "PRESS (X) TO COLLECT";
+                promptText.text = "PRESS TO COLLECT";
+                UpdatePromptVisualsInternal();
             }
         }
     }
@@ -143,6 +147,7 @@ public class CollectableItem : MonoBehaviour
                 if (promptCanvas != null)
                 {
                     promptCanvas.enabled = false;
+                    if (promptButtonImage != null) promptButtonImage.gameObject.SetActive(false);
                 }
             }
         }
@@ -185,6 +190,30 @@ public class CollectableItem : MonoBehaviour
                 currentHoveringPlayer = null;
 
                 Destroy(gameObject);
+            }
+        }
+    }
+
+    private void UpdatePromptVisualsInternal()
+    {
+        if (promptCanvas == null) return;
+        Color c = Color.white;
+        if (currentHoveringPlayer != null)
+        {
+            var id = currentHoveringPlayer.GetComponent<PlayerIdentifier>();
+            if (id != null) c = id.PlayerOutlineColor;
+        }
+        PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+        if (promptButtonImage != null)
+        {
+            bool active = promptCanvas.enabled;
+            promptButtonImage.gameObject.SetActive(active);
+            if (active)
+            {
+                if (buttonAnchor != null)
+                    promptButtonImage.rectTransform.position = buttonAnchor.position;
+                else
+                    promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
             }
         }
     }

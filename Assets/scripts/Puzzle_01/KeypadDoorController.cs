@@ -2,12 +2,16 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 public class KeypadDoorController : MonoBehaviour
 {
     [Header("UI")]
     [SerializeField] private GameObject keypadCanvas;
     [SerializeField] private GameObject interactPromptCanvas;
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
     private KeypadUIManager uiManager;
 
     [Header("Door Settings")]
@@ -284,8 +288,22 @@ public class KeypadDoorController : MonoBehaviour
     private void ShowPrompt(bool state)
     {
         if (interactPromptCanvas != null)
-            interactPromptCanvas.SetActive(state && !isActive && !isOpen);
-        if (state) UpdatePromptVisuals();
+        {
+            bool active = state && !isActive && !isOpen;
+            interactPromptCanvas.SetActive(active);
+            if (active) UpdatePromptVisuals();
+            if (promptButtonImage != null)
+            {
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    if (buttonAnchor != null)
+                        promptButtonImage.rectTransform.position = buttonAnchor.position;
+                    else
+                        promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+                }
+            }
+        }
     }
 
     private void UpdatePromptVisuals()
@@ -293,6 +311,18 @@ public class KeypadDoorController : MonoBehaviour
         if (interactPromptCanvas == null) return;
         Color c = PromptVisualHelper.ComputeColor(activePlayers, cooperativeOutlineColor);
         PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
+        if (promptButtonImage != null)
+        {
+            bool active = interactPromptCanvas.activeSelf;
+            promptButtonImage.gameObject.SetActive(active);
+            if (active)
+            {
+                if (buttonAnchor != null)
+                    promptButtonImage.rectTransform.position = buttonAnchor.position;
+                else
+                    promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+            }
+        }
     }
 
     private void PositionCanvasOnScreen(GameObject canvas)

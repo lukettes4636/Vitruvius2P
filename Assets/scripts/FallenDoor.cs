@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
+
 using TMPro;
 using System.Collections.Generic;
 
 public class FallenDoor : InteractiveObject
 {
+    [Header("Door Identification")]
+    [SerializeField] private string doorID = "";
     [Header("Door Settings")]
     [SerializeField] private float maxLiftHeight = 2f;
     [SerializeField] private float liftSpeed = 1f;
@@ -71,10 +74,14 @@ public class FallenDoor : InteractiveObject
     private bool isAtMaxHeight = false;
     private bool hasDropped = true;
     private bool isDropping = false;
+    private bool failDialogueShown = false;
 
     [Header("UI Prompt Settings")]
     [SerializeField] private Canvas promptCanvas;
     [SerializeField] private TextMeshProUGUI promptText;
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
 
     private void Start()
     {
@@ -130,6 +137,7 @@ public class FallenDoor : InteractiveObject
             playersInTrigger.Add(pid);
             UpdateOutlineColor();
             UpdatePrompt();
+            DialogueManager.ShowFallenDoorEnter(string.IsNullOrEmpty(doorID) ? gameObject.name : doorID, pid.gameObject);
         }
     }
 
@@ -162,6 +170,7 @@ public class FallenDoor : InteractiveObject
         }
         else {
             promptCanvas.enabled = false;
+            if (promptButtonImage != null) promptButtonImage.gameObject.SetActive(false);
         }
     }
 
@@ -171,6 +180,18 @@ public class FallenDoor : InteractiveObject
         {
             Color c = PromptVisualHelper.ComputeColor(playersInTrigger, mixedColor);
             PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+            if (promptButtonImage != null)
+            {
+                bool active = promptCanvas.enabled;
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    if (buttonAnchor != null)
+                        promptButtonImage.rectTransform.position = buttonAnchor.position;
+                    else
+                        promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+                }
+            }
         }
     }
 
@@ -212,6 +233,7 @@ public class FallenDoor : InteractiveObject
         playerLifter = null;
         hasDropped = false;
         isDropping = false;
+        failDialogueShown = false;
 
         
         if (liftSound != null && audioSource != null)
@@ -227,18 +249,28 @@ public class FallenDoor : InteractiveObject
             voiceAudioSource.loop = true;
             voiceAudioSource.Play();
         }
+
     }
 
     
     public void StopLifting()
     {
         if (isDropping) return;
-
+        float currentHeight = transform.position.y - initialPosition.y;
+        bool wasMidAction = (isBeingLifted || isFailLifting) && currentHeight > 0f && !isAtMaxHeight;
+        GameObject actorGo = null;
+        if (playerLifter != null) actorGo = playerLifter.gameObject;
+        else if (playerFailler != null) actorGo = playerFailler.gameObject;
         isBeingLifted = false;
         isFailLifting = false;
         playerLifter = null;
         playerFailler = null;
         isDropping = true;
+
+        if (actorGo != null && wasMidAction)
+        {
+            DialogueManager.ShowFallenDoorEarlyRelease(string.IsNullOrEmpty(doorID) ? gameObject.name : doorID, actorGo);
+        }
 
         
         if (audioSource != null)
@@ -289,6 +321,7 @@ public class FallenDoor : InteractiveObject
 
                     if (playerLifter != null) playerLifter.StartCooperativeEffects(0.2f, 0.1f, 0.8f, 0.8f, 0.2f);
                     isAtMaxHeight = true;
+                    DialogueManager.ShowFallenDoorLiftSuccess(string.IsNullOrEmpty(doorID) ? gameObject.name : doorID);
                 }
             }
         }
@@ -302,14 +335,31 @@ public class FallenDoor : InteractiveObject
                 Vector3 nextPos = Vector3.MoveTowards(transform.position, initialPosition + Vector3.up * failLiftHeight, liftSpeed * 0.5f * Time.deltaTime);
                 nextPos.x = initialPosition.x + shake;
                 transform.position = nextPos;
+                isDropping = false;
             }
             else
             {
                 float shake = Random.Range(-shakeAmount, shakeAmount);
                 transform.position = new Vector3(initialPosition.x + shake, initialPosition.y + failLiftHeight, initialPosition.z);
                 if (playerFailler != null) playerFailler.StartCooperativeEffects(0.1f, 0.05f, 0.3f, 0.3f, 0.1f);
+                if (!failDialogueShown && playerFailler != null)
+                {
+                    failDialogueShown = true;
+                    isFailLifting = false;
+                    isDropping = true;
+                    if (audioSource != null)
+                    {
+                        if (audioSource.isPlaying) audioSource.Stop();
+                        audioSource.loop = false;
+                        if (dropSound != null) audioSource.PlayOneShot(dropSound);
+                    }
+                    if (voiceAudioSource != null && voiceAudioSource.isPlaying)
+                    {
+                        voiceAudioSource.Stop();
+                    }
+                    DialogueManager.ShowFallenDoorLiftFail(string.IsNullOrEmpty(doorID) ? gameObject.name : doorID, playerFailler.gameObject);
+                }
             }
-            isDropping = false;
         }
 
         

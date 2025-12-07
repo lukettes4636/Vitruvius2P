@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class KeyCard : MonoBehaviour
 {
@@ -32,6 +33,9 @@ public class KeyCard : MonoBehaviour
    
     [Header("Interaction Prompt")]
     [SerializeField] private GameObject interactPromptCanvas; 
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
     
 
     private Renderer meshRenderer;
@@ -53,6 +57,8 @@ public class KeyCard : MonoBehaviour
 
         if (interactPromptCanvas != null)
             interactPromptCanvas.SetActive(false);
+        if (promptButtonImage != null)
+            promptButtonImage.gameObject.SetActive(false);
        
 
 
@@ -112,6 +118,7 @@ public class KeyCard : MonoBehaviour
             SetOutlineState(playerIdentifier.PlayerOutlineColor, activeOutlineScale);
 
             ShowPrompt(true);
+            UpdatePromptButtonVisuals();
          
         }
     }
@@ -125,6 +132,7 @@ public class KeyCard : MonoBehaviour
 
             
             ShowPrompt(false);
+            UpdatePromptButtonVisuals();
           
         }
     }
@@ -183,6 +191,21 @@ public class KeyCard : MonoBehaviour
        
         if (interactPromptCanvas != null)
             interactPromptCanvas.SetActive(state && !isCollected);
+        UpdatePromptButtonVisuals();
+    }
+
+    private void UpdatePromptButtonVisuals()
+    {
+        if (promptButtonImage == null) return;
+        bool active = interactPromptCanvas != null && interactPromptCanvas.activeSelf && !isCollected;
+        promptButtonImage.gameObject.SetActive(active);
+        if (active)
+        {
+            if (buttonAnchor != null)
+                promptButtonImage.rectTransform.position = buttonAnchor.position;
+            else
+                promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+        }
     }
  
 }

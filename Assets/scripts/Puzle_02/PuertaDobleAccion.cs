@@ -80,6 +80,13 @@ public class PuertaDobleAccion : MonoBehaviour
     [Header("UI Prompt Settings")]
     [SerializeField] private Canvas promptCanvas;
     [SerializeField] private TextMeshProUGUI promptText;
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
+    [SerializeField] private RectTransform singleButtonAnchor;
+    [SerializeField] private RectTransform coopButtonAnchor;
+    [SerializeField] private Vector2 singleButtonOffset = Vector2.zero;
+    [SerializeField] private Vector2 coopButtonOffset = Vector2.zero;
 
     [Header("Debug Settings")]
     [SerializeField] private bool showDebugInfo = false;
@@ -295,14 +302,18 @@ public class PuertaDobleAccion : MonoBehaviour
             return;
         }
 
-        if (activePlayers.Count == 0)
+        int count = jugadoresEnTrigger != null ? jugadoresEnTrigger.Count : 0;
+        if (count == 0)
         {
             SetOutlineState(originalOutlineColor, 0.0f);
         }
-        else if (activePlayers.Count == 1)
+        else if (count == 1)
         {
-            PlayerIdentifier singlePlayer = activePlayers[0];
-            SetOutlineState(singlePlayer.PlayerOutlineColor, activeOutlineScale);
+            GameObject only = null;
+            foreach (var p in jugadoresEnTrigger) { only = p; break; }
+            var id = only != null ? only.GetComponent<PlayerIdentifier>() : null;
+            Color c = id != null ? id.PlayerOutlineColor : originalOutlineColor;
+            SetOutlineState(c, activeOutlineScale);
         }
         else
         {
@@ -624,6 +635,11 @@ public class PuertaDobleAccion : MonoBehaviour
             }
         }
 
+        if (golpesActuales == golpesNecesarios - 1)
+        {
+            DialogueManager.ShowDoubleDoorFinalHitApproach();
+        }
+
         if (golpesActuales >= golpesNecesarios)
         {
             AbrirPuerta();
@@ -708,10 +724,7 @@ public class PuertaDobleAccion : MonoBehaviour
             col.enabled = false;
         }
 
-        foreach (GameObject p in jugadoresEnTrigger)
-        {
-            DialogueManager.ShowPlayerMessage(p, "Door opened!", 2.5f);
-        }
+        DialogueManager.ShowDoubleDoorOpened();
 
         foreach (GameObject player in jugadoresEnTrigger)
         {
@@ -793,7 +806,6 @@ public class PuertaDobleAccion : MonoBehaviour
             {
                 activePlayers.Add(playerIdentifier);
             }
-            UpdateOutlineVisuals();
         }
 
         if (estaAbierta || jugadoresEnTrigger.Contains(player))
@@ -802,6 +814,7 @@ public class PuertaDobleAccion : MonoBehaviour
         }
 
         jugadoresEnTrigger.Add(player);
+        UpdateOutlineVisuals();
 
         if (!playerHitData.ContainsKey(player))
         {
@@ -868,11 +881,12 @@ public class PuertaDobleAccion : MonoBehaviour
             if (promptCanvas != null && promptText != null)
             {
                 promptCanvas.enabled = true;
-                promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
+                promptText.text = "PRESS AT THE SAME TIME TO HIT THE DOOR";
                 UpdatePromptVisuals();
             }
 
             isCoopMessageShown = false;
+            DialogueManager.ShowDoubleDoorSingleEnter(player);
         }
         else if (jugadoresEnTrigger.Count >= 2 && !isCoopMessageShown)
         {
@@ -893,6 +907,21 @@ public class PuertaDobleAccion : MonoBehaviour
                 }
             }
             isCoopMessageShown = true;
+
+            if (promptCanvas != null && promptText != null)
+            {
+                promptCanvas.enabled = true;
+                promptText.text = "READY - PRESS BOTH";
+                UpdatePromptVisuals();
+            }
+            DialogueManager.ShowDoubleDoorBothReady();
+        }
+
+        if (promptCanvas != null && promptText != null)
+        {
+            promptCanvas.enabled = true;
+            promptText.text = jugadoresEnTrigger.Count >= 2 ? "READY - PRESS BOTH" : "PRESS AT THE SAME TIME TO HIT THE DOOR";
+            UpdatePromptVisuals();
         }
     }
 
@@ -905,7 +934,6 @@ public class PuertaDobleAccion : MonoBehaviour
             {
                 activePlayers.Remove(playerIdentifier);
             }
-            UpdateOutlineVisuals();
         }
 
         if (estaAbierta || !jugadoresEnTrigger.Contains(player))
@@ -947,6 +975,7 @@ public class PuertaDobleAccion : MonoBehaviour
         }
 
         jugadoresEnTrigger.Remove(player);
+        UpdateOutlineVisuals();
 
         if (jugadoresEnTrigger.Count < 2)
         {
@@ -973,7 +1002,8 @@ public class PuertaDobleAccion : MonoBehaviour
                 if (promptCanvas != null && promptText != null)
                 {
                     promptCanvas.enabled = true;
-                    promptText.text = "PRESS (X) AT THE SAME TIME TO HIT THE DOOR";
+                    promptText.text = "PRESS AT THE SAME TIME TO HIT THE DOOR";
+                    UpdatePromptVisuals();
                 }
             }
         }
@@ -989,6 +1019,30 @@ public class PuertaDobleAccion : MonoBehaviour
         {
             Color c = PromptVisualHelper.ComputeColor(jugadoresEnTrigger, cooperativeOutlineColor);
             PromptVisualHelper.ApplyToPrompt(promptCanvas.gameObject, c);
+
+            if (promptButtonImage != null)
+            {
+                bool active = promptCanvas.enabled;
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    bool isCoop = jugadoresEnTrigger != null && jugadoresEnTrigger.Count >= 2;
+                    RectTransform anchor = isCoop ? (coopButtonAnchor != null ? coopButtonAnchor : buttonAnchor)
+                                                  : (singleButtonAnchor != null ? singleButtonAnchor : buttonAnchor);
+                    Vector2 offset = isCoop ? coopButtonOffset : singleButtonOffset;
+
+                    if (anchor != null)
+                    {
+                        promptButtonImage.rectTransform.SetParent(anchor, false);
+                        promptButtonImage.rectTransform.anchoredPosition = Vector2.zero;
+                    }
+                    else
+                    {
+                        promptButtonImage.rectTransform.SetParent(promptCanvas.transform, false);
+                        promptButtonImage.rectTransform.anchoredPosition = offset;
+                    }
+                }
+            }
         }
     }
 

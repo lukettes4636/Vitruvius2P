@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using System.Collections.Generic; 
+using UnityEngine.UI;
 
 public class ElectricBox : MonoBehaviour
 {
@@ -32,6 +33,9 @@ public class ElectricBox : MonoBehaviour
     
     [Header("Interaction Prompt")]
     [SerializeField] private GameObject interactPromptCanvas; 
+    [SerializeField] private Image promptButtonImage;
+    [SerializeField] private RectTransform buttonAnchor;
+    [SerializeField] private Vector2 buttonImageOffset = Vector2.zero;
     
     
     
@@ -300,6 +304,18 @@ public class ElectricBox : MonoBehaviour
                 UpdatePromptVisuals();
             }
             interactPromptCanvas.SetActive(state && isPowerOn && !isAnimating);
+            if (promptButtonImage != null)
+            {
+                bool active = state && isPowerOn && !isAnimating;
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    if (buttonAnchor != null)
+                        promptButtonImage.rectTransform.position = buttonAnchor.position;
+                    else
+                        promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+                }
+            }
         }
     }
 
@@ -309,6 +325,18 @@ public class ElectricBox : MonoBehaviour
         {
             Color c = PromptVisualHelper.ComputeColor(activePlayers, cooperativeOutlineColor);
             PromptVisualHelper.ApplyToPrompt(interactPromptCanvas, c);
+            if (promptButtonImage != null)
+            {
+                bool active = interactPromptCanvas.activeSelf;
+                promptButtonImage.gameObject.SetActive(active);
+                if (active)
+                {
+                    if (buttonAnchor != null)
+                        promptButtonImage.rectTransform.position = buttonAnchor.position;
+                    else
+                        promptButtonImage.rectTransform.anchoredPosition = buttonImageOffset;
+                }
+            }
         }
     }
     

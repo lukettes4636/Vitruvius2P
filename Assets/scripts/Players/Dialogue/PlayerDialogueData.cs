@@ -64,4 +64,23 @@ public class PlayerDialogueData : ScriptableObject
     public string enemyDetectedAgain_Player2 = "We've been spotted!";
     public string survivorAfterDeath_Player1 = "I'll finish this... for you.";
     public string survivorAfterDeath_Player2 = "I'll carry on. Hold on.";
+
+    public string fallenDoor_Enter_Player1_Confident = "I'll get this door up.";
+    public string fallenDoor_Enter_Player2_Attempt = "I'll try lifting it.";
+    public string fallenDoor_LiftFail_Player2 = "I can't lift this.";
+    public string fallenDoor_LiftFail_Response_Player1 = "Let me try.";
+    public string fallenDoor_LiftSuccess_Player2 = "Great, now I can pass!";
+    public string fallenDoor_EarlyRelease_Player1 = "lo intentare de nuevo";
+    public string fallenDoor_EarlyRelease_Player2 = "lo intentare de nuevo";
+
+    public string doubleDoor_SingleEnter_Player1 = "I need help with this door!";
+    public string doubleDoor_SingleEnter_Player2 = "I need help with this door!";
+    public string doubleDoor_SingleEnter_Response_Player2OnP1 = "On my way.";
+    public string doubleDoor_SingleEnter_Response_Player1OnP2 = "Coming.";
+    public string doubleDoor_BothReady_Player1 = "Ready. Hit together.";
+    public string doubleDoor_BothReady_Player2 = "Ready here. Together.";
+    public string doubleDoor_FinalHitApproach_Player1 = "One more. Together.";
+    public string doubleDoor_FinalHitApproach_Player2 = "Last hit. Go.";
+    public string doubleDoor_Opened_Player1 = "Door opened!";
+    public string doubleDoor_Opened_Player2 = "It's open!";
 }

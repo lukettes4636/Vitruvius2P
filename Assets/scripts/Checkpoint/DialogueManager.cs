@@ -229,15 +229,12 @@ public class DialogueManager : MonoBehaviour
         if (other != null) ShowPlayerMessage(other, "Roger.", 2.5f);
     }
 
-    public static void ShowMonitorEnterDialogue(string monitorID, string monitorKind, GameObject entrant)
-    {
+public static void ShowMonitorEnterDialogue(string monitorID, string monitorKind, GameObject entrant)
+{
         if (instance == null || entrant == null) return;
         PlayerIdentifier id = entrant.GetComponent<PlayerIdentifier>();
         if (id == null) return;
         string keyBase = "monitor:" + monitorKind + ":" + monitorID;
-        string perPlayerKey = keyBase + ":p" + id.playerID;
-        if (instance.shownEnterFlags.Contains(perPlayerKey)) return;
-        instance.shownEnterFlags.Add(perPlayerKey);
 
         int first;
         if (!instance.firstEntrant.TryGetValue(keyBase, out first))
@@ -246,13 +243,9 @@ public class DialogueManager : MonoBehaviour
             if (instance.playerDialogueData != null)
             {
                 if (monitorKind == "Computer")
-                {
                     ShowPlayerMessage(entrant, id.playerID == 1 ? instance.playerDialogueData.monitorComputer_First_Player1 : instance.playerDialogueData.monitorComputer_First_Player2, 2.5f);
-                }
                 else
-                {
                     ShowPlayerMessage(entrant, id.playerID == 1 ? instance.playerDialogueData.monitorNote_First_Player1 : instance.playerDialogueData.monitorNote_First_Player2, 2.5f);
-                }
             }
             else
             {
@@ -266,57 +259,56 @@ public class DialogueManager : MonoBehaviour
             {
                 if (monitorKind == "Computer")
                 {
-                    if (id.playerID == 1 && otherWasFirst == 2)
+                    if (id.playerID == otherWasFirst)
+                        ShowPlayerMessage(entrant, id.playerID == 1 ? instance.playerDialogueData.monitorComputer_First_Player1 : instance.playerDialogueData.monitorComputer_First_Player2, 2.5f);
+                    else if (id.playerID == 1)
                         ShowPlayerMessage(entrant, instance.playerDialogueData.monitorComputer_Second_Player1WhenP2First, 2.5f);
-                    else if (id.playerID == 2 && otherWasFirst == 1)
+                    else
                         ShowPlayerMessage(entrant, instance.playerDialogueData.monitorComputer_Second_Player2WhenP1First, 2.5f);
                 }
                 else
                 {
-                    if (id.playerID == 1 && otherWasFirst == 2)
+                    if (id.playerID == otherWasFirst)
+                        ShowPlayerMessage(entrant, id.playerID == 1 ? instance.playerDialogueData.monitorNote_First_Player1 : instance.playerDialogueData.monitorNote_First_Player2, 2.5f);
+                    else if (id.playerID == 1)
                         ShowPlayerMessage(entrant, instance.playerDialogueData.monitorNote_Second_Player1WhenP2First, 2.5f);
-                    else if (id.playerID == 2 && otherWasFirst == 1)
+                    else
                         ShowPlayerMessage(entrant, instance.playerDialogueData.monitorNote_Second_Player2WhenP1First, 2.5f);
                 }
             }
         }
-    }
+}
 
-    public static void ShowKeypadEnterDialogue(string doorID, GameObject entrant)
-    {
+public static void ShowKeypadEnterDialogue(string doorID, GameObject entrant)
+{
         if (instance == null || entrant == null) return;
         PlayerIdentifier id = entrant.GetComponent<PlayerIdentifier>();
         if (id == null) return;
         string keyBase = "keypad:" + doorID;
-        string perPlayerKey = keyBase + ":p" + id.playerID;
-        if (instance.shownEnterFlags.Contains(perPlayerKey)) return;
-        instance.shownEnterFlags.Add(perPlayerKey);
 
         int first;
         if (!instance.firstEntrant.TryGetValue(keyBase, out first))
         {
             instance.firstEntrant[keyBase] = id.playerID;
             if (instance.playerDialogueData != null)
-            {
                 ShowPlayerMessage(entrant, id.playerID == 1 ? instance.playerDialogueData.keypadEnter_First_Player1 : instance.playerDialogueData.keypadEnter_First_Player2, 2.5f);
-            }
             else
-            {
                 ShowPlayerMessage(entrant, "Approaching keypad.", 2.5f);
-            }
         }
         else
         {
             int otherWasFirst = first;
             if (instance.playerDialogueData != null)
             {
-                if (id.playerID == 1 && otherWasFirst == 2)
+                if (id.playerID == otherWasFirst)
+                    ShowPlayerMessage(entrant, id.playerID == 1 ? instance.playerDialogueData.keypadEnter_First_Player1 : instance.playerDialogueData.keypadEnter_First_Player2, 2.5f);
+                else if (id.playerID == 1)
                     ShowPlayerMessage(entrant, instance.playerDialogueData.keypadEnter_Second_Player1WhenP2First, 2.5f);
-                else if (id.playerID == 2 && otherWasFirst == 1)
+                else
                     ShowPlayerMessage(entrant, instance.playerDialogueData.keypadEnter_Second_Player2WhenP1First, 2.5f);
             }
         }
-    }
+}
 
     public static void ShowKeypadCodeResultDialogue(GameObject actor, bool success)
     {
@@ -396,15 +388,89 @@ public class DialogueManager : MonoBehaviour
         }
     }
 
-    public static void ShowZoneNarrativeEnter(string zoneID, GameObject entrant)
+    public static void ShowDoubleDoorSingleEnter(GameObject entrant)
     {
         if (instance == null || entrant == null) return;
         PlayerIdentifier id = entrant.GetComponent<PlayerIdentifier>();
         if (id == null) return;
+        GameObject other = FindPlayerByTag(id.playerID == 1 ? "Player2" : "Player1");
+        if (instance.playerDialogueData != null)
+        {
+            if (id.playerID == 1)
+            {
+                ShowPlayerMessage(entrant, instance.playerDialogueData.doubleDoor_SingleEnter_Player1, 2.5f);
+                if (other != null) ShowPlayerMessage(other, instance.playerDialogueData.doubleDoor_SingleEnter_Response_Player2OnP1, 2.5f);
+            }
+            else
+            {
+                ShowPlayerMessage(entrant, instance.playerDialogueData.doubleDoor_SingleEnter_Player2, 2.5f);
+                if (other != null) ShowPlayerMessage(other, instance.playerDialogueData.doubleDoor_SingleEnter_Response_Player1OnP2, 2.5f);
+            }
+        }
+        else
+        {
+            ShowPlayerMessage(entrant, "I need help with this door!", 2.5f);
+            if (other != null) ShowPlayerMessage(other, "On my way.", 2.5f);
+        }
+    }
+
+    public static void ShowDoubleDoorBothReady()
+    {
+        if (instance == null) return;
+        GameObject p1 = FindPlayerByTag("Player1");
+        GameObject p2 = FindPlayerByTag("Player2");
+        if (instance.playerDialogueData != null)
+        {
+            if (p1 != null) ShowPlayerMessage(p1, instance.playerDialogueData.doubleDoor_BothReady_Player1, 2.5f);
+            if (p2 != null) ShowPlayerMessage(p2, instance.playerDialogueData.doubleDoor_BothReady_Player2, 2.5f);
+        }
+        else
+        {
+            if (p1 != null) ShowPlayerMessage(p1, "Ready. Hit together.", 2.5f);
+            if (p2 != null) ShowPlayerMessage(p2, "Ready here. Together.", 2.5f);
+        }
+    }
+
+    public static void ShowDoubleDoorFinalHitApproach()
+    {
+        if (instance == null) return;
+        GameObject p1 = FindPlayerByTag("Player1");
+        GameObject p2 = FindPlayerByTag("Player2");
+        if (instance.playerDialogueData != null)
+        {
+            if (p1 != null) ShowPlayerMessage(p1, instance.playerDialogueData.doubleDoor_FinalHitApproach_Player1, 2.5f);
+            if (p2 != null) ShowPlayerMessage(p2, instance.playerDialogueData.doubleDoor_FinalHitApproach_Player2, 2.5f);
+        }
+        else
+        {
+            if (p1 != null) ShowPlayerMessage(p1, "One more. Together.", 2.5f);
+            if (p2 != null) ShowPlayerMessage(p2, "Last hit. Go.", 2.5f);
+        }
+    }
+
+    public static void ShowDoubleDoorOpened()
+    {
+        if (instance == null) return;
+        GameObject p1 = FindPlayerByTag("Player1");
+        GameObject p2 = FindPlayerByTag("Player2");
+        if (instance.playerDialogueData != null)
+        {
+            if (p1 != null) ShowPlayerMessage(p1, instance.playerDialogueData.doubleDoor_Opened_Player1, 2.5f);
+            if (p2 != null) ShowPlayerMessage(p2, instance.playerDialogueData.doubleDoor_Opened_Player2, 2.5f);
+        }
+        else
+        {
+            if (p1 != null) ShowPlayerMessage(p1, "Door opened!", 2.5f);
+            if (p2 != null) ShowPlayerMessage(p2, "It's open!", 2.5f);
+        }
+    }
+
+public static void ShowZoneNarrativeEnter(string zoneID, GameObject entrant)
+{
+        if (instance == null || entrant == null) return;
+        PlayerIdentifier id = entrant.GetComponent<PlayerIdentifier>();
+        if (id == null) return;
         string keyBase = "zone:" + zoneID;
-        string perPlayerKey = keyBase + ":p" + id.playerID;
-        if (instance.shownEnterFlags.Contains(perPlayerKey)) return;
-        instance.shownEnterFlags.Add(perPlayerKey);
 
         int first;
         ZoneNarrativeEntry entry = instance.zoneNarrativeData != null ? instance.zoneNarrativeData.GetEntry(zoneID) : null;
@@ -412,26 +478,28 @@ public class DialogueManager : MonoBehaviour
         {
             instance.firstEntrant[keyBase] = id.playerID;
             if (entry != null)
-            {
                 ShowPlayerMessage(entrant, id.playerID == 1 ? entry.firstEnter_Player1 : entry.firstEnter_Player2, 2.5f);
-            }
             else
-            {
                 ShowPlayerMessage(entrant, "Entering area.", 2.5f);
-            }
         }
         else
         {
             int otherWasFirst = first;
             if (entry != null)
             {
-                if (id.playerID == 1 && otherWasFirst == 2)
+                if (id.playerID == otherWasFirst)
+                    ShowPlayerMessage(entrant, id.playerID == 1 ? entry.firstEnter_Player1 : entry.firstEnter_Player2, 2.5f);
+                else if (id.playerID == 1)
                     ShowPlayerMessage(entrant, entry.secondEnter_Player1WhenP2First, 2.5f);
-                else if (id.playerID == 2 && otherWasFirst == 1)
+                else
                     ShowPlayerMessage(entrant, entry.secondEnter_Player2WhenP1First, 2.5f);
             }
+            else
+            {
+                ShowPlayerMessage(entrant, "Entering area.", 2.5f);
+            }
         }
-    }
+}
 
     public static void ShowZoneNarrativeBoth(string zoneID)
     {
@@ -477,5 +545,51 @@ public class DialogueManager : MonoBehaviour
             ShowPlayerMessage(detectedPlayer, instance.playerDialogueData.enemyDetectedAgain_Player1, 2.5f);
         else
             ShowPlayerMessage(detectedPlayer, instance.playerDialogueData.enemyDetectedAgain_Player2, 2.5f);
+    }
+
+public static void ShowFallenDoorEnter(string doorID, GameObject entrant)
+{
+        if (instance == null || entrant == null) return;
+        PlayerIdentifier id = entrant.GetComponent<PlayerIdentifier>();
+        if (id == null) return;
+        if (instance.playerDialogueData == null) return;
+        if (id.playerID == 1)
+            ShowPlayerMessage(entrant, instance.playerDialogueData.fallenDoor_Enter_Player1_Confident, 2.5f);
+        else
+            ShowPlayerMessage(entrant, instance.playerDialogueData.fallenDoor_Enter_Player2_Attempt, 2.5f);
+}
+
+    public static void ShowFallenDoorLiftFail(string doorID, GameObject actor)
+    {
+        if (instance == null || actor == null) return;
+        if (instance.playerDialogueData == null) return;
+        PlayerIdentifier id = actor.GetComponent<PlayerIdentifier>();
+        if (id == null) return;
+        if (id.playerID == 2)
+        {
+            ShowPlayerMessage(actor, instance.playerDialogueData.fallenDoor_LiftFail_Player2, 2.5f);
+            GameObject p1 = FindPlayerByTag("Player1");
+            if (p1 != null) ShowPlayerMessage(p1, instance.playerDialogueData.fallenDoor_LiftFail_Response_Player1, 2.5f);
+        }
+    }
+
+    public static void ShowFallenDoorLiftSuccess(string doorID)
+    {
+        if (instance == null) return;
+        if (instance.playerDialogueData == null) return;
+        GameObject p2 = FindPlayerByTag("Player2");
+        if (p2 != null) ShowPlayerMessage(p2, instance.playerDialogueData.fallenDoor_LiftSuccess_Player2, 2.5f);
+    }
+
+    public static void ShowFallenDoorEarlyRelease(string doorID, GameObject actor)
+    {
+        if (instance == null || actor == null) return;
+        if (instance.playerDialogueData == null) return;
+        PlayerIdentifier id = actor.GetComponent<PlayerIdentifier>();
+        if (id == null) return;
+        if (id.playerID == 1)
+            ShowPlayerMessage(actor, instance.playerDialogueData.fallenDoor_EarlyRelease_Player1, 2.5f);
+        else
+            ShowPlayerMessage(actor, instance.playerDialogueData.fallenDoor_EarlyRelease_Player2, 2.5f);
     }
 }
