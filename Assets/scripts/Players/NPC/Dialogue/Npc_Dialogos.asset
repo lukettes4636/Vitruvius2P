@@ -23,9 +23,12 @@ MonoBehaviour:
       isNPC: 1
       options:
       - optionText: HOLA
-        nextNodeIndex: 0
+        nextNodeIndex: 1
       - optionText: 
         nextNodeIndex: 0
+    - line: kkk
+      isNPC: 1
+      options: []
     oneTimeOnly: 1
     markAsCompleted: 0
     hasBeenShown: 0

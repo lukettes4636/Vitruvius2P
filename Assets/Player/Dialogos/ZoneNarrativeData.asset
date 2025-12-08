@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: ZoneNarrativeData
   m_EditorClassIdentifier: 
   entries:
-  - zoneID: 
-    firstEnter_Player1: 
-    firstEnter_Player2: 
-    secondEnter_Player1WhenP2First: 
-    secondEnter_Player2WhenP1First: 
+  - zoneID: B
+    firstEnter_Player1: SSD
+    firstEnter_Player2: DDD
+    secondEnter_Player1WhenP2First: SS
+    secondEnter_Player2WhenP1First: SS
     bothPresentLine: 
