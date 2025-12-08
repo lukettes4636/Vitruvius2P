@@ -79,11 +79,11 @@ public class FlashlightController_Enhanced : MonoBehaviour
     [Tooltip("Optimizar contacto volumetrico con objetos")]
     public bool enableVLBContactOptimization = true;
     [Tooltip("Segmentos geometricos para mejor precision (16-128)")]
-    [Range(16, 128)] public int vlbTargetSegments = 64;
+    [Range(16, 128)] public int vlbTargetSegments = 128;
     [Tooltip("Distancia de blend para contactos definidos (0.1-2.0)")]
-    [Range(0.1f, 2.0f)] public float vlbDepthBlend = 0.5f;
+    [Range(0.1f, 2.0f)] public float vlbDepthBlend = 1.5f;
     [Tooltip("Intensidad de noise reducida para contactos limpios")]
-    [Range(0.0f, 0.3f)] public float vlbNoiseIntensity = 0.1f;
+    [Range(0.0f, 0.3f)] public float vlbNoiseIntensity = 0.15f;
     [Tooltip("Intensidad del haz volumetrico (1.0-10.0)")]
     [Range(1.0f, 10.0f)] public float vlbIntensity = 3.0f;
     [Tooltip("Brillo adicional del haz volumetrico (1.0-5.0)")]

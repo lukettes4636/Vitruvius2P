@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class FlashlightController : MonoBehaviour
@@ -96,6 +96,7 @@ public class FlashlightController : MonoBehaviour
         if (flashlight != null)
         {
             flashlight.intensity = state ? originalIntensity : 0f;
+            flashlight.enabled = state; 
         }
 
         

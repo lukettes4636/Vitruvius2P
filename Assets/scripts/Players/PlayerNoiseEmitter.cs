@@ -33,7 +33,7 @@ public class PlayerNoiseEmitter : MonoBehaviour
 
     private CharacterController controller;
     private float visualRadius = 0f;
-
+    private bool isRingVisible = true;
     
     private object activeMovementScript;
     private FieldInfo isMovingField;
@@ -165,6 +165,11 @@ public class PlayerNoiseEmitter : MonoBehaviour
     
     
     
+    public void ToggleRingVisibility()
+    {
+        isRingVisible = !isRingVisible;
+    }
+
     void UpdateVFX()
     {
         if (noiseVFX == null) return;
@@ -187,7 +192,7 @@ public class PlayerNoiseEmitter : MonoBehaviour
         noiseVFX.SetFloat(vfxPulseProperty, targetPulse);
 
         
-        noiseVFX.enabled = visualRadius > 0.1f;
+        noiseVFX.enabled = isRingVisible && (visualRadius > 0.1f);
     }
 
     void OnDrawGizmosSelected()
