@@ -103,11 +103,13 @@ public class FallenDoor : InteractiveObject
             audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
         }
+        audioSource.rolloffMode = AudioRolloffMode.Linear;
 
         
         voiceAudioSource = gameObject.AddComponent<AudioSource>();
         voiceAudioSource.playOnAwake = false;
-        voiceAudioSource.spatialBlend = 1f; 
+        voiceAudioSource.spatialBlend = 1f;
+        voiceAudioSource.rolloffMode = AudioRolloffMode.Linear; 
 
         if (promptCanvas != null) promptCanvas.enabled = false;
     }
