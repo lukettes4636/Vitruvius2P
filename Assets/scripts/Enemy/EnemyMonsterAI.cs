@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -12,20 +12,75 @@ public class EnemyMonsterAI : MonoBehaviour
     private AudioClip currentFootstepClip = null;
     private float currentFootstepInterval = 0f;
 
+    [Header("=== ESTADO INICIAL ===")]
+    [Tooltip("Estado en el que comienza el enemigo en este nivel")]
+    public InitialState initialState = InitialState.Sleeping;
+
+    public enum InitialState
+    {
+        Sleeping,
+        Eating,
+        Patrol
+    }
+
     [Header("Deteccion de jugadores")]
     public Transform[] playerTargets;
     private Transform currentPlayer;
 
-    [Header("Parametros de movimiento")]
-    public float lookRadius = 15f;
+    
+    private Vector3 targetPositionOfInterest;
+    private bool hasTargetOfInterest = false;
 
-    public float audioDetectionRadius = 10f;
-    public float viewAngle = 90f;
+    [Tooltip("Tiempo en segundos que recuerda la posicion antes de perderla")]
+    public float memoryDuration = 3.0f;
+    private float timeSinceLastHeard = 0f;
+
+    [Header("=== SISTEMA DE AUDIO PROFESIONAL ===")]
+    [Tooltip("Multiplicador de sensibilidad auditiva (1.0 = normal, 2.0 = doble alcance)")]
+    [Range(0.5f, 3.0f)]
+    public float audioSensitivity = 1.0f;
+
+    [Tooltip("Distancia maxima a la que puede escuchar cualquier sonido")]
+    public float maxHearingDistance = 20f;
+
+    [Tooltip("Radio minimo para detectar incluso el sonido mas bajo")]
+    public float minDetectionRadius = 1.5f;
+
+    [Tooltip("Umbral minimo de fuerza de audio para activar deteccin (0.0-1.0)")]
+    [Range(0.0f, 1.0f)]
+    public float detectionThreshold = 0.2f;
+
+    [Tooltip("Capa de obstaculos que bloquean el sonido")]
+    public LayerMask soundBlockerLayer;
+
+    [Tooltip("Reduccion de sonido por cada obstaculo (0.5 = 50% menos alcance)")]
+    [Range(0.1f, 0.9f)]
+    public float soundAttenuationPerWall = 0.7f;
+
+    [Header("Estados de Alerta")]
+    [Tooltip("Tiempo que permanece en estado de alerta despues de perder al jugador")]
+    public float alertDuration = 5f;
+
+    [Tooltip("Tiempo investigando la ultima posicion conocida")]
+    public float investigationDuration = 8f;
+
+    private float alertTimer = 0f;
+    private AudioAlertLevel currentAlertLevel = AudioAlertLevel.Calm;
+
+    private enum AudioAlertLevel
+    {
+        Calm,
+        Suspicious,
+        Alert,
+        Hunting
+    }
+
+    [Header("Parametros de movimiento")]
     public float attackRange = 2.2f;
     public float crawlSpeed = 1.2f;
     public float walkSpeed = 2.5f;
+    public float investigationSpeed = 1.8f;
     public float rotationSpeed = 8f;
-
     public float attackStopDistanceOffset = 0.5f;
     public float patrolStopDistance = 0.1f;
 
@@ -35,20 +90,19 @@ public class EnemyMonsterAI : MonoBehaviour
     private int patrolIndex = 0;
     private bool isWaiting = false;
 
-    [Header("Animaciones")]
+    [Header("Animaciones y Suavizado")]
     public float crawlToStateDuration = 1.1f;
     public float stateToCrawlDuration = 1.0f;
     public float roarDuration = 1.2f;
     public float attackDuration = 1f;
     public float attackCooldown = 0.7f;
     public string sleepAnimBool = "isSleeping";
+    public string eatAnimBool = "isEating";
 
-    [Header("Vision")]
-    public LayerMask visionBlockerLayer;
-    public float raycastHeightOffset = 1.2f;
-    public float targetRaycastHeightOffset = 1.0f;
-    public Color debugRayColor = Color.cyan;
-    public Color blockedRayColor = Color.red;
+    
+    [Tooltip("Tiempo de espera antes de pasar a Idle al detenerse (evita temblores)")]
+    public float stopAnimDelay = 0.2f;
+    private float stopAnimTimer = 0f;
 
     [Header("Audio")]
     public AudioClip roarClip;
@@ -56,7 +110,7 @@ public class EnemyMonsterAI : MonoBehaviour
     public AudioClip secondaryAttackClip;
     public AudioClip crawlFootstepClip;
     public AudioClip walkFootstepClip;
-
+    public AudioClip eatingSound;
     public float pitchVariance = 0.1f;
 
     [Header("Pisadas Programaticas")]
@@ -70,11 +124,12 @@ public class EnemyMonsterAI : MonoBehaviour
     [Header("Destruccion de Pared")]
     public LayerMask destructibleWallLayer;
     public float wallDetectionDistance = 3.0f;
+    [Tooltip("Grosor del rayo para detectar paredes (SphereCast)")]
+    public float wallDetectionRadius = 0.5f;
     public AudioClip wallBreakSound;
     private GameObject currentWallTarget = null;
 
     [Header("Optimizacion de Transiciones")]
-
     public float transitionDelay = 0.15f;
     [Tooltip("Velocidad minima para considerar que esta en movimiento")]
     public float movementThreshold = 0.05f;
@@ -82,22 +137,28 @@ public class EnemyMonsterAI : MonoBehaviour
     [Header("Camera System")]
     public EnemyCameraController enemyCameraController;
 
-    
     [Header("Shader FX - Roar")]
-    [Tooltip("Arrastra aqu el Material creado con SG_EnemyRoar (Mat_Roar)")]
+    [Tooltip("Material con shader de rugido")]
     public Material roarMaterial;
-
-    [Tooltip("Intensidad mxima de la distorsin.")]
     [Range(0, 0.1f)]
     public float maxRoarDistortion = 0.03f;
-    
 
-    private float halfViewAngle;
+    [Header("=== DEBUG AUDIO ===")]
+    public bool showAudioDebug = false;
+    public Color audioRangeColor = Color.yellow;
+    public Color detectionColor = Color.red;
+
+    [Header("=== DEBUG AVANZADO ===")]
+    [Tooltip("Mostrar logs detallados de deteccin en consola")]
+    public bool showDebugLogs = false;
+
+    private int _roarIntensityID;
+    private int _isActiveID;
+    private Coroutine roarVisualCoroutine = null;
+
     private bool isAttacking = false;
     private bool isRising = false;
     private bool isRoaring = false;
-    private bool playerVisible = false;
-    private bool lastPlayerVisible = false;
     private bool returningToCrawl = false;
     private bool hasAwakened = false;
     private bool isTransitioning = false;
@@ -105,12 +166,7 @@ public class EnemyMonsterAI : MonoBehaviour
     public float reDetectionCooldown = 2f;
     private float lastReDetectionTime = -999f;
 
-    
-    private int _roarIntensityID;
-    private int _isActiveID;
-    private Coroutine roarVisualCoroutine = null;
-
-    private enum State { Sleeping, Patrol, Chasing, Attacking, Rising, Roaring, Dead, ReturningToCrawl }
+    private enum State { Sleeping, Eating, Patrol, Investigating, Chasing, Attacking, Rising, Roaring, Dead, ReturningToCrawl }
     private State currentState = State.Sleeping;
     private State previousState = State.Sleeping;
 
@@ -127,39 +183,68 @@ public class EnemyMonsterAI : MonoBehaviour
             audioSource.playOnAwake = false;
         }
 
-        halfViewAngle = viewAngle / 2f;
-
         if (agent != null)
         {
             agent.isStopped = true;
+            
+            
             agent.updateRotation = false;
             agent.stoppingDistance = patrolStopDistance;
             agent.speed = crawlSpeed;
-            agent.acceleration = 8f;
+            agent.acceleration = 12f; 
             agent.angularSpeed = 120f;
         }
 
-
-        anim.SetBool(sleepAnimBool, true);
-        anim.SetBool("isCrawling", false);
-        anim.SetBool("isWalking", false);
-        anim.SetBool("isAttacking", false);
-
+        SetupInitialState();
         DisableAllHitboxes();
-
 
         if (enemyCameraController == null)
             enemyCameraController = FindObjectOfType<EnemyCameraController>();
 
-        
         if (roarMaterial != null)
         {
             _roarIntensityID = Shader.PropertyToID("_RoarIntensity");
             _isActiveID = Shader.PropertyToID("_IsActive");
-
-            
             roarMaterial.SetFloat(_isActiveID, 0f);
             roarMaterial.SetFloat(_roarIntensityID, 0f);
+        }
+    }
+
+    void SetupInitialState()
+    {
+        anim.SetBool(sleepAnimBool, false);
+        anim.SetBool(eatAnimBool, false);
+        anim.SetBool("isCrawling", false);
+        anim.SetBool("isWalking", false);
+        anim.SetBool("isAttacking", false);
+
+        switch (initialState)
+        {
+            case InitialState.Sleeping:
+                currentState = State.Sleeping;
+                anim.SetBool(sleepAnimBool, true);
+                break;
+
+            case InitialState.Eating:
+                currentState = State.Eating;
+                anim.SetBool(eatAnimBool, true);
+                if (eatingSound != null && audioSource != null)
+                {
+                    audioSource.clip = eatingSound;
+                    audioSource.loop = true;
+                    audioSource.Play();
+                }
+                break;
+
+            case InitialState.Patrol:
+                currentState = State.Patrol;
+                hasAwakened = true;
+                agent.updateRotation = true; 
+                if (patrolPoints.Length > 0)
+                {
+                    SetNextPatrol();
+                }
+                break;
         }
     }
 
@@ -167,111 +252,400 @@ public class EnemyMonsterAI : MonoBehaviour
     {
         if (currentState == State.Dead) return;
 
-        DetectPlayers();
+        
+        ProcessAudioDetection();
 
-        if (currentState == State.Sleeping)
+        if (currentState == State.Sleeping || currentState == State.Eating)
         {
-            HandleSleepingState();
+            HandlePassiveState();
             return;
         }
-
 
         if (currentState == State.Rising ||
             currentState == State.Roaring ||
-            currentState == State.ReturningToCrawl)
+            currentState == State.ReturningToCrawl ||
+            isTransitioning)
         {
             return;
         }
 
-
+        
         if (currentState == State.Attacking)
         {
-            if (currentPlayer != null)
-            {
-                RotateToTarget(currentPlayer.position);
-            }
+            if (hasTargetOfInterest)
+                RotateToTarget(targetPositionOfInterest);
+            else if (currentWallTarget != null)
+                RotateToTarget(currentWallTarget.transform.position);
             return;
         }
 
-
-        if (!playerVisible || currentPlayer == null)
+        
+        if (currentAlertLevel != AudioAlertLevel.Calm && currentAlertLevel != AudioAlertLevel.Hunting)
         {
-            if (hasAwakened)
+            alertTimer -= Time.deltaTime;
+            if (alertTimer <= 0f)
             {
+                currentAlertLevel = AudioAlertLevel.Calm;
+            }
+        }
 
-                if (currentState == State.Chasing && !returningToCrawl && !isTransitioning)
-                {
-                    StartCoroutine(ReturnToCrawl());
-                    return;
-                }
+        
+        switch (currentState)
+        {
+            case State.Chasing:
+                HandleChasingState();
+                break;
 
+            case State.Patrol:
                 Patrol();
+                if (hasTargetOfInterest)
+                {
+                    StartCoroutine(RiseAndRoar());
+                }
+                break;
+
+            case State.Investigating:
+                
+                if (hasTargetOfInterest && currentAlertLevel >= AudioAlertLevel.Alert)
+                {
+                    StopAllCoroutines();
+                    isTransitioning = false;
+                    ChangeState(State.Chasing);
+                }
+                break;
+        }
+    }
+
+    
+    
+    
+    void ProcessAudioDetection()
+    {
+        Transform loudestPlayer = null;
+        float maxAudioStrength = 0f;
+
+        
+        foreach (Transform player in playerTargets)
+        {
+            if (player == null) continue;
+
+            PlayerHealth health = player.GetComponent<PlayerHealth>();
+            if (health != null && health.IsDead) continue;
+
+            float dist = Vector3.Distance(transform.position, player.position);
+            PlayerNoiseEmitter noiseEmitter = player.GetComponent<PlayerNoiseEmitter>();
+
+            if (noiseEmitter == null || noiseEmitter.currentNoiseRadius < 0.1f) continue;
+
+            float strength = CalculateAudioDetection(player, noiseEmitter, dist);
+
+            if (strength > maxAudioStrength)
+            {
+                maxAudioStrength = strength;
+                loudestPlayer = player;
             }
-            return;
         }
 
-
-        float distance = Vector3.Distance(transform.position, currentPlayer.position);
-        RotateToTarget(currentPlayer.position);
-
-
-        if (currentState == State.Patrol)
+        
+        if (loudestPlayer != null && maxAudioStrength > 0f)
         {
-            StartCoroutine(RiseAndRoar());
-            return;
+            
+            currentPlayer = loudestPlayer;
+            targetPositionOfInterest = currentPlayer.position; 
+            hasTargetOfInterest = true;
+            timeSinceLastHeard = 0f; 
+
+            
+            if (maxAudioStrength > 0.8f) currentAlertLevel = AudioAlertLevel.Hunting;
+            else if (maxAudioStrength > 0.5f) currentAlertLevel = AudioAlertLevel.Alert;
+            else if (maxAudioStrength > 0.2f) currentAlertLevel = AudioAlertLevel.Suspicious;
+
+            if (currentState == State.Chasing || currentState == State.Patrol)
+            {
+                alertTimer = alertDuration;
+            }
+
+            
+            if (!hasShownFirstDetection)
+            {
+                hasShownFirstDetection = true;
+                lastReDetectionTime = Time.time;
+            }
+            else if (Time.time - lastReDetectionTime > reDetectionCooldown && currentState == State.Patrol)
+            {
+                DialogueManager.ShowEnemyDetectedAgainDialogue(currentPlayer.gameObject);
+                lastReDetectionTime = Time.time;
+            }
         }
-
-
-        if (currentState != State.Chasing)
+        else
         {
-            return;
+            
+            timeSinceLastHeard += Time.deltaTime;
+
+            if (timeSinceLastHeard > memoryDuration)
+            {
+                
+                bool wasChasing = (currentState == State.Chasing);
+
+                hasTargetOfInterest = false;
+                currentPlayer = null;
+
+                
+                if (wasChasing && !isAttacking && !returningToCrawl && !isTransitioning)
+                {
+                    DialogueManager.ShowEnemyChaseEndedDialogue();
+                    StartCoroutine(InvestigatePosition(targetPositionOfInterest));
+                }
+            }
+        }
+    }
+
+    float CalculateAudioDetection(Transform player, PlayerNoiseEmitter noiseEmitter, float distance)
+    {
+        if (distance > maxHearingDistance) return 0f;
+
+        float playerNoiseRadius = noiseEmitter.currentNoiseRadius * audioSensitivity;
+        int wallCount = CountSoundBlockers(player);
+
+        float attenuatedRadius = playerNoiseRadius * Mathf.Pow(soundAttenuationPerWall, wallCount);
+        float effectiveRadius = Mathf.Max(attenuatedRadius, minDetectionRadius);
+
+        if (distance <= effectiveRadius)
+        {
+            float strength = 1f - (distance / effectiveRadius);
+            return Mathf.Clamp01(strength);
+        }
+        return 0f;
+    }
+
+    int CountSoundBlockers(Transform target)
+    {
+        Vector3 start = transform.position + Vector3.up * 1.0f;
+        Vector3 end = target.position + Vector3.up * 1.0f;
+        Vector3 direction = (end - start).normalized;
+        float distance = Vector3.Distance(start, end);
+
+        RaycastHit[] hits = Physics.RaycastAll(start, direction, distance, soundBlockerLayer);
+        return hits.Length;
+    }
+
+    
+    
+    
+    void HandleChasingState()
+    {
+        
+        if (currentPlayer != null)
+        {
+            PlayerHealth health = currentPlayer.GetComponent<PlayerHealth>();
+            if (health != null && health.IsDead)
+            {
+                hasTargetOfInterest = false;
+                currentPlayer = null;
+                StartCoroutine(ReturnToCrawl());
+                return;
+            }
         }
 
-        agent.stoppingDistance = attackRange - attackStopDistanceOffset;
-
-
-        if (IsWallBetweenPlayerAndMe(currentPlayer))
+        
+        
+        if (CheckForWallInFront())
         {
             StartCoroutine(AttackWallCycle());
             return;
         }
 
-
-        if (distance > agent.stoppingDistance + 0.1f)
+        
+        if (hasTargetOfInterest && IsWallBetweenPositions(transform.position, targetPositionOfInterest))
         {
-            ChasePlayer();
+            StartCoroutine(AttackWallCycle());
+            return;
+        }
+
+        
+        agent.stoppingDistance = attackRange - attackStopDistanceOffset;
+        agent.speed = walkSpeed;
+
+        if (hasTargetOfInterest)
+        {
+            agent.SetDestination(targetPositionOfInterest);
+        }
+
+        
+        if (agent.hasPath || agent.velocity.magnitude > 0.1f)
+        {
+            RotateToTarget(agent.steeringTarget);
+        }
+
+        
+        float actualSpeed = agent.velocity.magnitude;
+        
+        bool isMovingEngine = actualSpeed > movementThreshold || (agent.desiredVelocity.magnitude > 0.5f && !agent.isStopped);
+
+        if (isMovingEngine)
+        {
+            stopAnimTimer = stopAnimDelay; 
+            anim.SetBool("isWalking", true);
         }
         else
         {
-            StartCoroutine(AttackCycle());
+            stopAnimTimer -= Time.deltaTime;
+            if (stopAnimTimer <= 0f)
+            {
+                anim.SetBool("isWalking", false);
+            }
+        }
+        anim.SetBool("isCrawling", false);
+
+        if (isMovingEngine) UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
+
+        
+        if (hasTargetOfInterest)
+        {
+            float distToTarget = Vector3.Distance(transform.position, targetPositionOfInterest);
+            
+            if (distToTarget <= attackRange && !CheckForWallInFront())
+            {
+                StartCoroutine(AttackCycle());
+            }
         }
     }
 
-
-
-
-
-    void HandleSleepingState()
+    
+    bool CheckForWallInFront()
     {
-        if (currentPlayer != null)
+        Vector3 origin = transform.position + Vector3.up * 1.0f;
+        Vector3 direction = transform.forward;
+        float checkDistance = 1.5f;
+
+        if (Physics.SphereCast(origin, 0.4f, direction, out RaycastHit hit, checkDistance, destructibleWallLayer))
         {
-            float distance = Vector3.Distance(transform.position, currentPlayer.position);
-
-            if (distance <= audioDetectionRadius)
+            if (hit.collider.gameObject != gameObject)
             {
-                hasAwakened = true;
-                anim.SetBool(sleepAnimBool, false);
-
-                agent.updateRotation = true;
-
-                if (patrolPoints.Length > 0)
-                {
-                    SetNextPatrol();
-                }
-
-                StartCoroutine(RiseAndRoar());
+                currentWallTarget = hit.collider.gameObject;
+                return true;
             }
         }
+        return false;
+    }
+
+    bool IsWallBetweenPositions(Vector3 startPos, Vector3 endPos)
+    {
+        Vector3 start = startPos + Vector3.up * 1.2f;
+        Vector3 direction = (endPos - start).normalized;
+        float distance = Vector3.Distance(start, endPos);
+        float checkDist = Mathf.Min(distance, wallDetectionDistance);
+
+        RaycastHit[] hits = Physics.SphereCastAll(start, wallDetectionRadius, direction, checkDist, destructibleWallLayer);
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider.gameObject != gameObject)
+            {
+                currentWallTarget = hit.collider.gameObject;
+                return true;
+            }
+        }
+        currentWallTarget = null;
+        return false;
+    }
+
+    void HandlePassiveState()
+    {
+        if (hasTargetOfInterest)
+        {
+            WakeUp();
+        }
+    }
+
+    void WakeUp()
+    {
+        hasAwakened = true;
+
+        if (currentState == State.Eating && audioSource != null && audioSource.isPlaying)
+        {
+            audioSource.Stop();
+            audioSource.loop = false;
+        }
+
+        anim.SetBool(sleepAnimBool, false);
+        anim.SetBool(eatAnimBool, false);
+        agent.updateRotation = false;
+
+        if (patrolPoints.Length > 0)
+        {
+            SetNextPatrol();
+        }
+
+        StartCoroutine(RiseAndRoar());
+    }
+
+    IEnumerator InvestigatePosition(Vector3 position)
+    {
+        if (currentState == State.Investigating || isTransitioning) yield break;
+
+        ChangeState(State.Investigating);
+        currentAlertLevel = AudioAlertLevel.Suspicious;
+
+        agent.speed = investigationSpeed;
+        agent.stoppingDistance = 1f;
+
+        if (IsWallBetweenPositions(transform.position, position))
+        {
+            yield return StartCoroutine(AttackWallCycle());
+            if (hasTargetOfInterest) yield break;
+            ChangeState(State.Investigating);
+        }
+
+        agent.SetDestination(position);
+        agent.isStopped = false;
+
+        anim.SetBool("isWalking", false);
+        UpdateFootsteps(crawlFootstepClip, crawlFootstepInterval);
+
+        float investigationTimer = 0f;
+
+        while (investigationTimer < investigationDuration)
+        {
+            investigationTimer += Time.deltaTime;
+
+            if (hasTargetOfInterest && currentAlertLevel >= AudioAlertLevel.Alert)
+            {
+                yield break; 
+            }
+
+            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f)
+            {
+                StopMovementCompletely();
+                
+                transform.Rotate(Vector3.up, 40f * Time.deltaTime);
+                anim.SetBool("isCrawling", false);
+            }
+            else
+            {
+                if (agent.isStopped) agent.isStopped = false;
+
+                
+                if (agent.velocity.magnitude > 0.1f)
+                {
+                    Quaternion lookRot = Quaternion.LookRotation(agent.velocity.normalized);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, lookRot, Time.deltaTime * 5f);
+                }
+
+                
+                bool isMoving = agent.velocity.sqrMagnitude > movementThreshold;
+                if (isMoving) stopAnimTimer = stopAnimDelay;
+                else stopAnimTimer -= Time.deltaTime;
+
+                anim.SetBool("isCrawling", stopAnimTimer > 0);
+            }
+
+            yield return null;
+        }
+
+        hasTargetOfInterest = false;
+        currentAlertLevel = AudioAlertLevel.Calm;
+        StartCoroutine(ReturnToCrawl());
     }
 
     void Patrol()
@@ -281,6 +655,7 @@ public class EnemyMonsterAI : MonoBehaviour
             ChangeState(State.Patrol);
             agent.stoppingDistance = patrolStopDistance;
             agent.speed = crawlSpeed;
+            agent.updateRotation = true;
 
             if (patrolPoints.Length > 0 && !agent.hasPath)
             {
@@ -294,7 +669,6 @@ public class EnemyMonsterAI : MonoBehaviour
             return;
         }
 
-
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f)
         {
             if (!isWaiting)
@@ -305,21 +679,20 @@ public class EnemyMonsterAI : MonoBehaviour
         }
         else
         {
+            if (agent.isStopped) agent.isStopped = false;
 
-            if (agent.isStopped)
-            {
-                agent.isStopped = false;
-            }
-
-
+            
             bool isMoving = agent.velocity.sqrMagnitude > movementThreshold;
-            anim.SetBool("isCrawling", isMoving);
+
+            if (isMoving) stopAnimTimer = stopAnimDelay;
+            else stopAnimTimer -= Time.deltaTime;
+
+            bool animState = stopAnimTimer > 0;
+
+            anim.SetBool("isCrawling", animState);
             anim.SetBool("isWalking", false);
 
-            if (isMoving)
-            {
-                UpdateFootsteps(crawlFootstepClip, crawlFootstepInterval);
-            }
+            if (animState) UpdateFootsteps(crawlFootstepClip, crawlFootstepInterval);
         }
     }
 
@@ -331,8 +704,6 @@ public class EnemyMonsterAI : MonoBehaviour
         yield return new WaitForSeconds(patrolWaitTime);
 
         SetNextPatrol();
-
-
         yield return new WaitForSeconds(transitionDelay);
 
         agent.isStopped = false;
@@ -346,125 +717,64 @@ public class EnemyMonsterAI : MonoBehaviour
         agent.SetDestination(patrolPoints[patrolIndex].position);
     }
 
-
-
-
-
-    void DetectPlayers()
+    IEnumerator AttackWallCycle()
     {
-        Transform nearest = null;
-        float minDist = Mathf.Infinity;
+        if (currentWallTarget == null || isAttacking || isTransitioning) yield break;
 
-        foreach (Transform player in playerTargets)
+        GameObject wallToAttack = currentWallTarget;
+
+        
+        agent.isStopped = false;
+        agent.speed = walkSpeed;
+        agent.stoppingDistance = 0.5f;
+        agent.SetDestination(wallToAttack.transform.position);
+
+        float timeout = 2.0f;
+        float timer = 0f;
+
+        
+        while (wallToAttack != null && Vector3.Distance(transform.position, wallToAttack.transform.position) > 1.8f && timer < timeout)
         {
-            if (player == null) continue;
-
-            PlayerHealth health = player.GetComponent<PlayerHealth>();
-            if (health != null && health.IsDead)
-            {
-                continue;
-            }
-
-            float dist = Vector3.Distance(transform.position, player.position);
-
-            bool canSeePlayer = dist <= lookRadius && IsPlayerInViewCone(player) && HasLineOfSight(player);
-            bool canHearPlayer = dist <= audioDetectionRadius;
-
-            if (currentState == State.Sleeping)
-            {
-                if (!canHearPlayer) continue;
-            }
-            else
-            {
-                if (!canSeePlayer && !canHearPlayer) continue;
-            }
-
-            if (dist < minDist)
-            {
-                minDist = dist;
-                nearest = player;
-            }
+            timer += Time.deltaTime;
+            anim.SetBool("isWalking", true);
+            RotateToTarget(wallToAttack.transform.position);
+            yield return null;
         }
 
-        bool hadPlayer = playerVisible;
-        currentPlayer = nearest;
-        playerVisible = nearest != null;
+        
+        isTransitioning = true;
+        ChangeState(State.Attacking);
+        isAttacking = true;
 
-        if (playerVisible && !hadPlayer)
+        StopMovementCompletely();
+
+        if (wallToAttack != null)
         {
-            if (!hasShownFirstDetection)
-            {
-                hasShownFirstDetection = true;
-                lastReDetectionTime = Time.time;
-            }
-            else if (Time.time - lastReDetectionTime > reDetectionCooldown && currentPlayer != null)
-            {
-                DialogueManager.ShowEnemyDetectedAgainDialogue(currentPlayer.gameObject);
-                lastReDetectionTime = Time.time;
-            }
+            RotateToTarget(wallToAttack.transform.position);
         }
 
+        anim.SetBool("isWalking", false);
+        anim.SetBool("isCrawling", false);
+        anim.SetBool("isAttacking", true);
 
-        if (!playerVisible && hadPlayer && hasAwakened &&
-            !returningToCrawl && !isTransitioning &&
-            (currentState == State.Chasing || currentState == State.Attacking))
-        {
-            DialogueManager.ShowEnemyChaseEndedDialogue();
-            StartCoroutine(ReturnToCrawl());
-        }
+        anim.SetTrigger("Attack3"); 
+
+        yield return new WaitForSeconds(0.4f);
+
+        TryToDestroyWall(); 
+
+        yield return new WaitForSeconds(attackDuration - 0.4f);
+
+        DisableAllHitboxes();
+
+        anim.SetBool("isAttacking", false);
+        isAttacking = false;
+        isTransitioning = false;
+
+        yield return new WaitForSeconds(attackCooldown);
+
+        ChangeState(State.Chasing);
     }
-
-    bool IsPlayerInViewCone(Transform player)
-    {
-        Vector3 dir = (player.position - transform.position).normalized;
-        dir.y = 0;
-        return Vector3.Angle(transform.forward, dir) < halfViewAngle;
-    }
-
-    bool HasLineOfSight(Transform player)
-    {
-        Vector3 origin = transform.position + Vector3.up * raycastHeightOffset;
-        Vector3 target = player.position + Vector3.up * targetRaycastHeightOffset;
-        Vector3 dir = (target - origin).normalized;
-        float dist = Vector3.Distance(origin, target);
-
-        if (Physics.Raycast(origin, dir, out RaycastHit hit, dist, visionBlockerLayer))
-        {
-            Debug.DrawLine(origin, hit.point, blockedRayColor, Time.deltaTime);
-            return false;
-        }
-
-        Debug.DrawLine(origin, target, debugRayColor, Time.deltaTime);
-        return true;
-    }
-
-    bool IsWallBetweenPlayerAndMe(Transform targetPlayer)
-    {
-        if (targetPlayer == null) return false;
-
-        Vector3 start = transform.position + Vector3.up * raycastHeightOffset;
-        Vector3 end = targetPlayer.position + Vector3.up * targetRaycastHeightOffset;
-        Vector3 direction = (end - start).normalized;
-        float distance = Vector3.Distance(start, end);
-
-        float effectiveDistance = Mathf.Min(distance, wallDetectionDistance);
-
-        if (Physics.Raycast(start, direction, out RaycastHit hit, effectiveDistance, destructibleWallLayer))
-        {
-            if ((destructibleWallLayer & (1 << hit.collider.gameObject.layer)) != 0)
-            {
-                currentWallTarget = hit.collider.gameObject;
-                return true;
-            }
-        }
-
-        currentWallTarget = null;
-        return false;
-    }
-
-
-
-
 
     IEnumerator RiseAndRoar()
     {
@@ -475,14 +785,13 @@ public class EnemyMonsterAI : MonoBehaviour
         ChangeState(State.Rising);
         isRising = true;
 
-
         if (enemyCameraController != null)
             enemyCameraController.StartTrackingEnemy(transform);
 
         StopMovementCompletely();
         ResetAllAnimations();
 
-        anim.SetTrigger("GetUp");
+        anim.SetTrigger("GetUp"); 
 
         yield return new WaitForSeconds(crawlToStateDuration);
 
@@ -493,51 +802,25 @@ public class EnemyMonsterAI : MonoBehaviour
         PlayRoarSound();
         anim.SetTrigger("Roar");
 
-        
-        
-
         yield return new WaitForSeconds(roarDuration);
 
         isRoaring = false;
         isTransitioning = false;
         ChangeState(State.Chasing);
 
-
         yield return new WaitForSeconds(transitionDelay);
 
         agent.speed = walkSpeed;
         agent.isStopped = false;
+        agent.updateRotation = false; 
         anim.SetBool("isWalking", true);
 
         UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
+
         if (!hasShownFirstDetection)
         {
             hasShownFirstDetection = true;
             lastReDetectionTime = Time.time;
-        }
-    }
-
-    void ChasePlayer()
-    {
-        if (currentPlayer == null) return;
-        if (currentState != State.Chasing) return;
-
-        agent.speed = walkSpeed;
-        agent.SetDestination(currentPlayer.position);
-
-        if (agent.isStopped)
-        {
-            agent.isStopped = false;
-        }
-
-
-        bool isMoving = agent.velocity.sqrMagnitude > movementThreshold;
-        anim.SetBool("isWalking", isMoving);
-        anim.SetBool("isCrawling", false);
-
-        if (isMoving)
-        {
-            UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
         }
     }
 
@@ -551,6 +834,8 @@ public class EnemyMonsterAI : MonoBehaviour
         isAttacking = true;
 
         StopMovementCompletely();
+        
+        RotateToTarget(targetPositionOfInterest);
 
         anim.SetBool("isWalking", false);
         anim.SetBool("isCrawling", false);
@@ -567,19 +852,15 @@ public class EnemyMonsterAI : MonoBehaviour
         isAttacking = false;
         isTransitioning = false;
 
-
         yield return null;
 
-        if (playerVisible && currentPlayer != null)
+        if (hasTargetOfInterest)
         {
             ChangeState(State.Chasing);
-
             yield return new WaitForSeconds(transitionDelay);
-
             agent.speed = walkSpeed;
             agent.isStopped = false;
-            anim.SetBool("isWalking", true);
-
+            
             UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
         }
         else
@@ -593,80 +874,6 @@ public class EnemyMonsterAI : MonoBehaviour
         yield return new WaitForSeconds(attackCooldown);
     }
 
-    IEnumerator AttackWallCycle()
-    {
-        if (currentWallTarget == null || isAttacking || isTransitioning) yield break;
-        if (currentState == State.Attacking) yield break;
-
-        GameObject wallToAttack = currentWallTarget;
-
-
-        agent.speed = walkSpeed;
-        agent.isStopped = false;
-
-        Vector3 targetPos = wallToAttack.transform.position;
-        Vector3 approachPos = targetPos - (targetPos - transform.position).normalized * 0.5f;
-
-        agent.SetDestination(approachPos);
-
-        anim.SetBool("isWalking", true);
-        anim.SetBool("isCrawling", false);
-        UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
-
-        float timeout = 10f;
-        float elapsed = 0f;
-
-        while (Vector3.Distance(transform.position, approachPos) > agent.stoppingDistance + 0.3f)
-        {
-            elapsed += Time.deltaTime;
-
-            if (elapsed > timeout || currentPlayer == null || !IsWallBetweenPlayerAndMe(currentPlayer))
-            {
-                yield break;
-            }
-
-            yield return null;
-        }
-
-
-        isTransitioning = true;
-        ChangeState(State.Attacking);
-        isAttacking = true;
-
-        StopMovementCompletely();
-        RotateToTarget(wallToAttack.transform.position);
-
-        anim.SetBool("isWalking", false);
-        anim.SetBool("isCrawling", false);
-        anim.SetBool("isAttacking", true);
-
-        anim.SetTrigger("Attack3");
-
-        yield return new WaitForSeconds(attackDuration);
-
-        DisableAllHitboxes();
-
-        anim.SetBool("isAttacking", false);
-        isAttacking = false;
-        isTransitioning = false;
-
-        yield return null;
-
-        if (playerVisible && currentPlayer != null)
-        {
-            ChangeState(State.Chasing);
-
-            yield return new WaitForSeconds(transitionDelay);
-
-            agent.speed = walkSpeed;
-            agent.isStopped = false;
-            anim.SetBool("isWalking", true);
-            UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
-        }
-
-        yield return new WaitForSeconds(attackCooldown);
-    }
-
     IEnumerator ReturnToCrawl()
     {
         if (returningToCrawl || isTransitioning) yield break;
@@ -674,7 +881,6 @@ public class EnemyMonsterAI : MonoBehaviour
         isTransitioning = true;
         returningToCrawl = true;
         ChangeState(State.ReturningToCrawl);
-
 
         if (enemyCameraController != null)
             enemyCameraController.StopTrackingEnemy();
@@ -693,21 +899,15 @@ public class EnemyMonsterAI : MonoBehaviour
 
         SetNextPatrol();
 
-
         yield return new WaitForSeconds(transitionDelay);
 
         agent.isStopped = false;
-        anim.SetBool("isCrawling", true);
-
+        
         returningToCrawl = false;
         isTransitioning = false;
 
         UpdateFootsteps(crawlFootstepClip, crawlFootstepInterval);
     }
-
-
-
-
 
     void ChangeState(State newState)
     {
@@ -745,10 +945,6 @@ public class EnemyMonsterAI : MonoBehaviour
         }
     }
 
-
-
-
-
     private void DisableAllHitboxes()
     {
         DisableRightHand();
@@ -780,12 +976,8 @@ public class EnemyMonsterAI : MonoBehaviour
         if (audioSource != null)
         {
             audioSource.pitch = 1f;
-
-            if (attackClip != null)
-                audioSource.PlayOneShot(attackClip);
-
-            if (secondaryAttackClip != null)
-                audioSource.PlayOneShot(secondaryAttackClip);
+            if (attackClip != null) audioSource.PlayOneShot(attackClip);
+            if (secondaryAttackClip != null) audioSource.PlayOneShot(secondaryAttackClip);
         }
     }
 
@@ -804,9 +996,7 @@ public class EnemyMonsterAI : MonoBehaviour
                 DialogueManager.ShowEnemyWallBreakDialogue();
 
                 if (audioSource != null && wallBreakSound != null)
-                {
                     audioSource.PlayOneShot(wallBreakSound);
-                }
 
                 currentWallTarget = null;
             }
@@ -819,11 +1009,9 @@ public class EnemyMonsterAI : MonoBehaviour
             enemyCameraController.StopTrackingEnemy();
 
         ChangeState(State.Dead);
+        StopAllCoroutines();
+        agent.isStopped = true;
     }
-
-
-
-
 
     private IEnumerator PlayFootsteps(AudioClip clip, float interval)
     {
@@ -859,7 +1047,6 @@ public class EnemyMonsterAI : MonoBehaviour
         currentFootstepClip = clip;
         currentFootstepInterval = interval;
 
-
         Invoke(nameof(StartFootstepsDelayed), 0.15f);
     }
 
@@ -892,64 +1079,19 @@ public class EnemyMonsterAI : MonoBehaviour
         }
     }
 
-    void OnDrawGizmosSelected()
-    {
-        halfViewAngle = viewAngle / 2f;
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, lookRadius);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawWireSphere(transform.position, audioDetectionRadius);
-        Gizmos.color = Color.red;
-
-        if (agent != null)
-        {
-            Gizmos.DrawWireSphere(transform.position, agent.stoppingDistance);
-        }
-        else
-        {
-            Gizmos.DrawWireSphere(transform.position, attackRange * 0.7f);
-        }
-
-        Vector3 origin = transform.position + Vector3.up * 0.05f;
-        Vector3 left = Quaternion.Euler(0, -halfViewAngle, 0) * transform.forward;
-        Vector3 right = Quaternion.Euler(0, halfViewAngle, 0) * transform.forward;
-        Gizmos.color = debugRayColor;
-        Gizmos.DrawRay(origin, left * lookRadius);
-        Gizmos.DrawRay(origin, right * lookRadius);
-
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawWireSphere(transform.position, wallDetectionDistance);
-    }
-
-    
-    
-    
-    
-
-    
     public void AE_StartRoarEffect()
     {
         if (roarMaterial == null) return;
-
-        
         roarMaterial.SetFloat(_isActiveID, 1f);
-
-        
         if (roarVisualCoroutine != null) StopCoroutine(roarVisualCoroutine);
         roarVisualCoroutine = StartCoroutine(RoarIntensityRoutine());
     }
 
-    
     public void AE_StopRoarEffect()
     {
         if (roarMaterial == null) return;
-
-        
         roarMaterial.SetFloat(_isActiveID, 0f);
         roarMaterial.SetFloat(_roarIntensityID, 0f);
-
-        
         if (roarVisualCoroutine != null)
         {
             StopCoroutine(roarVisualCoroutine);
@@ -957,26 +1099,49 @@ public class EnemyMonsterAI : MonoBehaviour
         }
     }
 
-    
     private IEnumerator RoarIntensityRoutine()
     {
         float timer = 0f;
-
-        while (true) 
+        while (true)
         {
             timer += Time.deltaTime;
-
-            
-            
-            
             float pulse = Mathf.Abs(Mathf.Sin(timer * 10f));
-
-            
             float currentIntensity = pulse * maxRoarDistortion;
-
             roarMaterial.SetFloat(_roarIntensityID, currentIntensity);
-
             yield return null;
         }
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (!showAudioDebug) return;
+
+        Gizmos.color = audioRangeColor;
+        Gizmos.DrawWireSphere(transform.position, maxHearingDistance);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, minDetectionRadius);
+
+        Gizmos.color = Color.red;
+        if (agent != null)
+            Gizmos.DrawWireSphere(transform.position, agent.stoppingDistance);
+        else
+            Gizmos.DrawWireSphere(transform.position, attackRange * 0.7f);
+
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawWireSphere(transform.position, wallDetectionDistance);
+
+        if (hasTargetOfInterest)
+        {
+            Gizmos.color = detectionColor;
+            Gizmos.DrawSphere(targetPositionOfInterest, 0.5f);
+            Gizmos.DrawLine(transform.position, targetPositionOfInterest);
+        }
+
+        
+        Vector3 origin = transform.position + Vector3.up * 1.0f;
+        Gizmos.color = Color.blue;
+        Gizmos.DrawLine(origin, origin + transform.forward * 1.5f);
+        Gizmos.DrawWireSphere(origin + transform.forward * 1.5f, 0.4f);
     }
 }

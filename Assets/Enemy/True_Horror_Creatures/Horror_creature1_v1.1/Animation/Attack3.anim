@@ -68710,9 +68710,9 @@ AnimationClip:
     intParameter: 0
     messageOptions: 0
   - time: 0.5416667
-    functionName: TryToDestroyWall
+    functionName: TryDestroyWall
     data: 
-    objectReferenceParameter: {fileID: 0}
+    objectReferenceParameter: {fileID: 6477311470060402228, guid: 09880554fbbcccd4fb59dbd8dd9f6f46, type: 3}
     floatParameter: 0
     intParameter: 0
     messageOptions: 0

@@ -15,6 +15,15 @@
                     "initialStateCheck": true
                 },
                 {
+                    "name": "ToggleNoiseVFX",
+                    "type": "Button",
+                    "id": "d594c527-0bed-4096-8f57-f5d86c5a577d",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Flashlight",
                     "type": "Button",
                     "id": "926b2b52-469b-41af-a306-2d4e2a09106f",
@@ -224,6 +233,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "Positive",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "fc4cf56c-4760-43f5-bfff-9420724b013f",
+                    "path": "<Gamepad>/dpad/down",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "ToggleNoiseVFX",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
