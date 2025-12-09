@@ -57,19 +57,26 @@ public class EnemyBrain : MonoBehaviour
 
     void SetupInitialState()
     {
+        
+        visuals.UpdateAnimationState(false);
+
         switch (initialState)
         {
             case InitialState.Sleeping:
                 currentState = State.Sleeping;
-                visuals.SetSleep(true);
+                visuals.SetPassiveState(0); 
                 break;
+
             case InitialState.Eating:
                 currentState = State.Eating;
-                visuals.SetEat(true);
+                visuals.SetPassiveState(1); 
                 break;
+
             case InitialState.Patrol:
                 currentState = State.Patrol;
                 hasAwakened = true;
+                visuals.SetPassiveState(0); 
+                visuals.TriggerGetUp();     
                 motor.SetAutoRotation(true);
                 if (patrolPoints.Length > 0) GoToNextPatrolPoint();
                 break;
@@ -82,14 +89,17 @@ public class EnemyBrain : MonoBehaviour
 
         senses.Tick();
 
+        
         if (currentState == State.Sleeping || currentState == State.Eating)
         {
             if (senses.HasTargetOfInterest) WakeUp();
             return;
         }
 
+        
         if (currentState == State.Transitioning || currentState == State.Attacking) return;
 
+        
         switch (currentState)
         {
             case State.Chasing:
@@ -113,6 +123,7 @@ public class EnemyBrain : MonoBehaviour
 
     void HandleChasing()
     {
+        
         if (senses.CurrentPlayer != null)
         {
             var health = senses.CurrentPlayer.GetComponent<PlayerHealth>();
@@ -124,25 +135,28 @@ public class EnemyBrain : MonoBehaviour
             }
         }
 
+        
         if (senses.CheckForWallInFront())
         {
             StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
             return;
         }
 
+        
         if (senses.HasTargetOfInterest && senses.CheckWallInPathToTarget())
         {
             StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
             return;
         }
 
+        
         if (senses.HasTargetOfInterest)
         {
             motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, attackRange - 0.5f);
-            
-            visuals.UpdateAnimationState(false);
+            visuals.UpdateAnimationState(false); 
         }
 
+        
         if (senses.HasTargetOfInterest)
         {
             float dist = Vector3.Distance(transform.position, senses.TargetPositionOfInterest);
@@ -174,8 +188,7 @@ public class EnemyBrain : MonoBehaviour
         }
         else
         {
-            
-            visuals.UpdateAnimationState(true);
+            visuals.UpdateAnimationState(true); 
         }
     }
 
@@ -205,7 +218,6 @@ public class EnemyBrain : MonoBehaviour
         while (wall != null && Vector3.Distance(transform.position, wall.transform.position) > 1.8f && timer < 2f)
         {
             timer += Time.deltaTime;
-            
             visuals.UpdateAnimationState(false);
             yield return null;
         }
@@ -233,8 +245,6 @@ public class EnemyBrain : MonoBehaviour
         motor.MoveTo(pos, investigationSpeed, 1f);
 
         
-        visuals.UpdateAnimationState(true);
-
         float timer = 0f;
         while (timer < 8.0f)
         {
@@ -243,14 +253,13 @@ public class EnemyBrain : MonoBehaviour
             
             if (motor.GetRemainingDistance() > 0.2f)
             {
-                visuals.UpdateAnimationState(true); 
+                visuals.UpdateAnimationState(true);
             }
             else
             {
                 motor.Stop();
                 transform.Rotate(Vector3.up, 40f * Time.deltaTime);
-                
-                visuals.UpdateAnimationState(true);
+                visuals.UpdateAnimationState(true); 
             }
             yield return null;
         }
@@ -276,7 +285,6 @@ public class EnemyBrain : MonoBehaviour
     {
         isWaitingAtPatrol = true;
         motor.Stop();
-        
         visuals.UpdateAnimationState(true);
 
         yield return new WaitForSeconds(patrolWaitTime);
@@ -288,8 +296,7 @@ public class EnemyBrain : MonoBehaviour
     void WakeUp()
     {
         hasAwakened = true;
-        visuals.SetSleep(false);
-        visuals.SetEat(false);
+        visuals.SetPassiveState(0); 
         StartCoroutine(WakeUpAndRoarRoutine());
     }
 

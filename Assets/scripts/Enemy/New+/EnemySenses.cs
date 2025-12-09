@@ -30,7 +30,7 @@ public class EnemySenses : MonoBehaviour
     public bool HasTargetOfInterest { get; private set; }
     public Transform CurrentPlayer { get; private set; }
     public GameObject CurrentWallTarget { get; private set; }
-    public float CurrentAlertLevel { get; private set; } 
+    public float CurrentAlertLevel { get; private set; }
 
     
     public bool showDebugGizmos = true;
@@ -50,7 +50,6 @@ public class EnemySenses : MonoBehaviour
         {
             if (player == null) continue;
 
-            
             var health = player.GetComponent<PlayerHealth>();
             if (health != null && health.IsDead) continue;
 

@@ -69,11 +69,10 @@ public class EnemyVisuals : MonoBehaviour
         
         
         float targetSpeed = motor.IsMoving ? 1f : 0f;
+        float currentSpeed = anim.GetFloat("Speed");
 
         
-        float currentSpeed = anim.GetFloat("Speed");
         float newSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, Time.deltaTime * animationDampTime);
-
         anim.SetFloat("Speed", newSpeed);
 
         
@@ -90,57 +89,59 @@ public class EnemyVisuals : MonoBehaviour
     }
 
     
-    public void TriggerAttack(int attackIndex)
+    
+    public void SetPassiveState(int stateIndex)
     {
-        
-        anim.ResetTrigger("Attack");
+        anim.SetFloat("PassiveType", (float)stateIndex);
 
         
+        if (stateIndex == 1)
+        {
+            if (eatingSound != null)
+            {
+                if (!audioSource.isPlaying || audioSource.clip != eatingSound)
+                {
+                    audioSource.clip = eatingSound;
+                    audioSource.loop = true;
+                    audioSource.Play();
+                }
+            }
+        }
+        else 
+        {
+            if (audioSource.clip == eatingSound)
+            {
+                audioSource.Stop();
+                audioSource.loop = false;
+            }
+        }
+    }
+
+    
+    public void SetSleep(bool state) { if (state) SetPassiveState(0); }
+    public void SetEat(bool state) { if (state) SetPassiveState(1); }
+
+    
+    public void TriggerAttack(int attackIndex)
+    {
+        anim.ResetTrigger("Attack");
         anim.SetInteger("AttackIndex", attackIndex);
         anim.SetTrigger("Attack");
     }
 
-    public void StopAttack()
-    {
-        
-        
-        DisableAllHitboxes();
-    }
-
+    public void StopAttack() => DisableAllHitboxes();
     public void TriggerRoar() => anim.SetTrigger("Roar");
 
     public void TriggerGetUp()
     {
-        anim.ResetTrigger("ToCrawl"); 
+        anim.ResetTrigger("ToCrawl");
         anim.SetTrigger("GetUp");
     }
 
     public void TriggerToCrawl()
     {
-        anim.ResetTrigger("GetUp"); 
+        anim.ResetTrigger("GetUp");
         anim.SetTrigger("ToCrawl");
-    }
-
-    
-    public void SetSleep(bool state) => anim.SetBool("isSleeping", state);
-
-    public void SetEat(bool state)
-    {
-        anim.SetBool("isEating", state);
-        if (state && eatingSound)
-        {
-            if (!audioSource.isPlaying || audioSource.clip != eatingSound)
-            {
-                audioSource.clip = eatingSound;
-                audioSource.loop = true;
-                audioSource.Play();
-            }
-        }
-        else if (!state && audioSource.clip == eatingSound)
-        {
-            audioSource.Stop();
-            audioSource.loop = false;
-        }
     }
 
     

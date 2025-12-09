@@ -76,7 +76,6 @@ public class EnemyMotor : MonoBehaviour
         
         if (IsMoving || agent.hasPath)
         {
-            
             Vector3 nextPoint = agent.steeringTarget;
             RotateTowards(nextPoint);
         }
