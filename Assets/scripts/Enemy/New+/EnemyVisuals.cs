@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 
 using UnityEngine.Animations.Rigging;
@@ -14,51 +14,41 @@ public class EnemyVisuals : MonoBehaviour
     
     
 
-    [Header("--- CONFIGURACION DE AUDIO ---")]
-    [Tooltip("Sonido de Rugido")]
+    [Header("--- AUDIO ---")]
     public AudioClip roarClip;
-    [Tooltip("Sonido de Ataque (Impacto)")]
     public AudioClip attackClip;
-    [Tooltip("Sonido Secundario de Ataque (Esfuerzo/Grito)")]
     public AudioClip secondaryAttackClip;
-    [Tooltip("Sonido al romper la pared")]
     public AudioClip wallBreakSound;
-    [Tooltip("Sonido de comer (Loop)")]
     public AudioClip eatingSound;
 
     [Header("--- SISTEMA DE PISADAS ---")]
     public AudioClip crawlFootstepClip;
     public AudioClip walkFootstepClip;
-    [Tooltip("Tiempo entre pasos al gatear")]
     public float crawlFootstepInterval = 0.5f;
-    [Tooltip("Tiempo entre pasos al caminar")]
     public float walkFootstepInterval = 0.35f;
-    [Tooltip("Variacion aleatoria del tono (Pitch) para realismo")]
+    [Tooltip("Variacion aleatoria del tono del audio")]
     public float pitchVariance = 0.1f;
 
     [Header("--- HITBOXES (COMBATE) ---")]
-    [Tooltip("Collider de la mano derecha (Weapon/Claw)")]
     public GameObject rightHandCollider;
-    [Tooltip("Collider de la mano izquierda")]
     public GameObject leftHandCollider;
 
-    [Header("--- EFECTOS VISUALES (VFX) ---")]
-    [Tooltip("Material con el shader de distorsion para el rugido")]
+    [Header("--- VFX (SHADER RUGIDO) ---")]
     public Material roarMaterial;
     public float maxRoarDistortion = 0.03f;
 
-    [Header("--- ANIMATOR ---")]
-    [Tooltip("Velocidad de interpolacion para los Blend Trees (Suavizado)")]
+    [Header("--- CONFIGURACION ANIMATOR ---")]
+    [Tooltip("Suavizado de la transicion de caminar (Blend Tree)")]
     public float animationDampTime = 5f;
 
-    [Header("--- ANIMATION RIGGING (SISTEMA DE MIRADA) ---")]
+    [Header("--- SISTEMA DE MIRADA (IK RIGGING) ---")]
     [Tooltip("Arrastra aqui el objeto 'IK_Rig' que tiene el componente Rig")]
     public Rig headAimRig;
-    [Tooltip("Arrastra aqui el objeto 'LookTarget' que la cabeza sigue")]
+    [Tooltip("Arrastra aqui el objeto 'LookTarget' (Esfera vacia)")]
     public Transform lookTarget;
-    [Tooltip("Que tan lejos se mueve el target de izquierda a derecha")]
+    [Tooltip("Distancia lateral del barrido de cabeza")]
     public float scanWidth = 1.5f;
-    [Tooltip("Velocidad del escaneo (movimiento de cabeza)")]
+    [Tooltip("Velocidad del movimiento de cabeza")]
     public float scanSpeed = 2.0f;
 
     
@@ -81,7 +71,7 @@ public class EnemyVisuals : MonoBehaviour
 
     
     private bool isInvestigating = false;
-    private Vector3 defaultTargetLocalPos;
+    private Vector3 initialTargetLocalPos; 
 
     
     
@@ -89,7 +79,6 @@ public class EnemyVisuals : MonoBehaviour
 
     void Awake()
     {
-        
         anim = GetComponent<Animator>();
         motor = GetComponent<EnemyMotor>();
 
@@ -112,7 +101,7 @@ public class EnemyVisuals : MonoBehaviour
         if (lookTarget != null)
         {
             
-            defaultTargetLocalPos = lookTarget.localPosition;
+            initialTargetLocalPos = lookTarget.localPosition;
         }
 
         
@@ -137,23 +126,29 @@ public class EnemyVisuals : MonoBehaviour
 
         
         
-        float targetRigWeight = isInvestigating ? 1f : 0f;
-        headAimRig.weight = Mathf.MoveTowards(headAimRig.weight, targetRigWeight, Time.deltaTime * 2f);
+        float targetWeight = isInvestigating ? 1f : 0f;
+        headAimRig.weight = Mathf.MoveTowards(headAimRig.weight, targetWeight, Time.deltaTime * 2f);
 
-        
         
         if (headAimRig.weight > 0.01f)
         {
             
-            float sway = Mathf.Sin(Time.time * scanSpeed) * scanWidth;
+            float oscillation = Mathf.Sin(Time.time * scanSpeed);
 
             
-            Vector3 newPos = defaultTargetLocalPos;
+            float moveX = oscillation * scanWidth;
 
             
-            newPos.x += sway;
+            Vector3 targetPos = initialTargetLocalPos;
+            targetPos.x += moveX;
 
-            lookTarget.localPosition = newPos;
+            
+            lookTarget.localPosition = targetPos;
+        }
+        else
+        {
+            
+            lookTarget.localPosition = Vector3.Lerp(lookTarget.localPosition, initialTargetLocalPos, Time.deltaTime * 5f);
         }
     }
 
@@ -172,7 +167,6 @@ public class EnemyVisuals : MonoBehaviour
         
         anim.SetBool("isCrawling", isCrawling);
 
-        
         
         float targetSpeed = motor.IsMoving ? 1f : 0f;
         float currentSpeed = anim.GetFloat("Speed");
@@ -194,9 +188,9 @@ public class EnemyVisuals : MonoBehaviour
         }
     }
 
+    
     public void SetPassiveState(int stateIndex)
     {
-        
         anim.SetFloat("PassiveType", (float)stateIndex);
 
         
@@ -232,11 +226,6 @@ public class EnemyVisuals : MonoBehaviour
         anim.SetTrigger("Attack");
     }
 
-    public void StopAttack()
-    {
-        DisableAllHitboxes();
-    }
-
     public void TriggerRoar()
     {
         ResetSyncFlags();
@@ -257,8 +246,8 @@ public class EnemyVisuals : MonoBehaviour
         anim.SetTrigger("ToCrawl");
     }
 
-    
-    
+    public void StopAttack() => DisableAllHitboxes();
+
     
 
     public void ResetSyncFlags()
