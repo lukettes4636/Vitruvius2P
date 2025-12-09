@@ -70,6 +70,7 @@ public class EnemyMonsterAI : MonoBehaviour
     [Header("Destruccion de Pared")]
     public LayerMask destructibleWallLayer;
     public float wallDetectionDistance = 3.0f;
+    public AudioClip wallBreakSound;
     private GameObject currentWallTarget = null;
 
     [Header("Optimizacion de Transiciones")]
@@ -801,6 +802,11 @@ public class EnemyMonsterAI : MonoBehaviour
 
                 wallScript.Explode(impactPoint, impactDirection);
                 DialogueManager.ShowEnemyWallBreakDialogue();
+
+                if (audioSource != null && wallBreakSound != null)
+                {
+                    audioSource.PlayOneShot(wallBreakSound);
+                }
 
                 currentWallTarget = null;
             }
