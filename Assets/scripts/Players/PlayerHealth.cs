@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System;
@@ -119,6 +119,13 @@ public class PlayerHealth : MonoBehaviour
 
 
         chestImpactPoint = transform.Find("ChestImpactPoint");
+        if (chestImpactPoint == null)
+        {
+            GameObject chestPointObj = new GameObject("ChestImpactPoint");
+            chestPointObj.transform.SetParent(transform);
+            chestPointObj.transform.localPosition = new Vector3(0, 1.4f, 0); 
+            chestImpactPoint = chestPointObj.transform;
+        }
 
 
     }
@@ -323,8 +330,18 @@ public class PlayerHealth : MonoBehaviour
     
     private void PlayBloodEffect()
     {
-        if (chestImpactPoint == null || bloodParticlesPrefab == null) return;
-        if (UnityEngine.Random.value > bloodEffectProbability) return;
+        if (bloodParticlesPrefab == null)
+        {
+            return;
+        }
+
+        if (chestImpactPoint == null)
+        {
+            return;
+        }
+        
+        
+        
 
         Quaternion randomRotation = Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0);
 
@@ -333,6 +350,9 @@ public class PlayerHealth : MonoBehaviour
 
         
         VisualEffect bloodVFX = Instantiate(bloodParticlesPrefab, spawnPos, randomRotation);
+        
+        
+        bloodVFX.Play();
 
         
         StartCoroutine(AttachAndDetachVFX(bloodVFX, chestImpactPoint, 0.05f, 2.5f));
