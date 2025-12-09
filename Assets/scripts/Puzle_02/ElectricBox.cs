@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using System.Collections.Generic; 
 using UnityEngine.UI;
@@ -19,7 +19,15 @@ public class ElectricBox : MonoBehaviour
     [Header("Sonido")]
     [Tooltip("Sonido que se reproduce cuando se corta la electricidad.")]
     [SerializeField] private AudioClip powerCutSound;
+    [Range(0f, 1f)]
     [SerializeField] private float powerCutVolume = 1.0f;
+    [SerializeField] private float powerCutMaxDistance = 50f;
+
+    [Header("Sonido Secundario (Linear Rolloff)")]
+    [SerializeField] private AudioClip powerCutSoundLinear;
+    [Range(0f, 1f)]
+    [SerializeField] private float powerCutVolumeLinear = 1.0f;
+    [SerializeField] private float linearMaxDistance = 50f;
 
     [Header("Objetos Afectados")]
     [Tooltip("Arrastra aqui el script WarningDoor del Collider que quieres desactivar.")]
@@ -61,6 +69,7 @@ public class ElectricBox : MonoBehaviour
 
     private bool isPowerOn = true;
     private bool isAnimating = false;
+    private AudioSource audioSource;
 
     private void Start()
     {
@@ -238,13 +247,55 @@ public class ElectricBox : MonoBehaviour
         }
 
         
+        
+        if (electricityParticles != null)
+        {
+            electricityParticles.SetActive(false);
+        }
+
+        if (powerCutSound != null)
+        {
+            if (audioSource == null) audioSource = GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+            
+            audioSource.spatialBlend = 0f; 
+            audioSource.PlayOneShot(powerCutSound, powerCutVolume);
+        }
+
+        if (powerCutSoundLinear != null)
+        {
+            GameObject tempAudio = new GameObject("TempLinearAudio_PowerCut");
+            tempAudio.transform.position = transform.position;
+            AudioSource tempSource = tempAudio.AddComponent<AudioSource>();
+
+            tempSource.clip = powerCutSoundLinear;
+            tempSource.volume = powerCutVolumeLinear;
+            tempSource.spatialBlend = 0f; 
+            tempSource.dopplerLevel = 0f; 
+
+            tempSource.Play();
+            Destroy(tempAudio, powerCutSoundLinear.length + 0.1f);
+        }
+
+        if (uiController != null) 
+        {
+            uiController.ShowNotification($" The power is off now! ");
+        }
+
+        if (doorBarrier != null)
+        {
+            doorBarrier.DeactivateBarrier();
+        }
+
+        isPowerOn = false;
+        
+
         if (fullLeverObject != null)
         {
             fullLeverObject.SetActive(true);
             yield return new WaitForSeconds(0.3f);
         }
 
-        
         if (leverToRotate != null)
         {
             Quaternion startRotation = leverToRotate.localRotation;
@@ -253,7 +304,6 @@ public class ElectricBox : MonoBehaviour
 
             while (elapsed < rotationDuration)
             {
-                
                 leverToRotate.localRotation = Quaternion.Slerp(startRotation, endRotation, elapsed / rotationDuration);
                 elapsed += Time.deltaTime;
                 yield return null;
@@ -261,40 +311,10 @@ public class ElectricBox : MonoBehaviour
             leverToRotate.localRotation = endRotation;
         }
 
-        
         yield return new WaitForSeconds(0.2f);
-
-        if (electricityParticles != null)
-        {
-            electricityParticles.SetActive(false);
-
-        }
-
-        
-        if (powerCutSound != null)
-        {
-            AudioSource.PlayClipAtPoint(powerCutSound, transform.position, powerCutVolume);
-        }
-
-        
-        if (uiController != null)
-        {
-            uiController.ShowNotification($" The power is off now! ");
-        }
-
-        
-        if (doorBarrier != null)
-        {
-            doorBarrier.DeactivateBarrier();
-        }
-
-        isPowerOn = false;
         isAnimating = false;
     }
 
-    
-    
-    
     private void ShowPrompt(bool state)
     {
         if (interactPromptCanvas != null)
