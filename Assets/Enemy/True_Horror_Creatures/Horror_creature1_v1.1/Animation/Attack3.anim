@@ -68716,6 +68716,13 @@ AnimationClip:
     floatParameter: 0
     intParameter: 0
     messageOptions: 0
+  - time: 0.5416667
+    functionName: AE_ActionImpact
+    data: 
+    objectReferenceParameter: {fileID: 0}
+    floatParameter: 0
+    intParameter: 0
+    messageOptions: 0
   - time: 0.7083333
     functionName: DisableLeftHand
     data: 
@@ -68725,6 +68732,13 @@ AnimationClip:
     messageOptions: 0
   - time: 0.7083333
     functionName: EnableRightHand
+    data: 
+    objectReferenceParameter: {fileID: 0}
+    floatParameter: 0
+    intParameter: 0
+    messageOptions: 0
+  - time: 1.0416666
+    functionName: AE_ActionFinish
     data: 
     objectReferenceParameter: {fileID: 0}
     floatParameter: 0

@@ -25,17 +25,12 @@ public class EnemyMotor : MonoBehaviour
     void Update()
     {
         
-        
-        
-        
-        
         float actualSpeed = agent.velocity.magnitude;
         bool hasIntent = agent.desiredVelocity.magnitude > 0.5f && !agent.isStopped;
         bool calculatingPath = agent.pathPending;
 
         IsMoving = actualSpeed > movementThreshold || hasIntent || calculatingPath;
 
-        
         HandleRotation();
     }
 
@@ -56,7 +51,6 @@ public class EnemyMotor : MonoBehaviour
             agent.velocity = Vector3.zero;
             agent.ResetPath();
         }
-        
         IsMoving = false;
     }
 
@@ -73,7 +67,6 @@ public class EnemyMotor : MonoBehaviour
 
     private void HandleRotation()
     {
-        
         if (IsMoving || agent.hasPath)
         {
             Vector3 nextPoint = agent.steeringTarget;
