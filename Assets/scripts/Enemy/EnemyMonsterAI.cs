@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -110,9 +110,11 @@ public class EnemyMonsterAI : MonoBehaviour
     private int _isActiveID;
     private Coroutine roarVisualCoroutine = null;
 
-    private enum State { Sleeping, Patrol, Chasing, Attacking, Rising, Roaring, Dead, ReturningToCrawl }
+    private enum State { Sleeping, Patrol, Chasing, Attacking, Rising, Roaring, Dead, ReturningToCrawl, Investigating }
     private State currentState = State.Sleeping;
     private State previousState = State.Sleeping;
+
+    private Vector3 lastKnownPosition;
 
     void Start()
     {
@@ -126,6 +128,12 @@ public class EnemyMonsterAI : MonoBehaviour
             audioSource.spatialBlend = 1.0f;
             audioSource.playOnAwake = false;
         }
+
+        
+        audioSource.rolloffMode = AudioRolloffMode.Linear;
+        audioSource.minDistance = 1f;
+        audioSource.maxDistance = 30f; 
+        audioSource.dopplerLevel = 0f; 
 
         halfViewAngle = viewAngle / 2f;
 
@@ -190,6 +198,13 @@ public class EnemyMonsterAI : MonoBehaviour
             {
                 RotateToTarget(currentPlayer.position);
             }
+            return;
+        }
+
+
+        if (currentState == State.Investigating)
+        {
+            Investigate();
             return;
         }
 
@@ -386,9 +401,22 @@ public class EnemyMonsterAI : MonoBehaviour
             }
         }
 
+        if (nearest != null)
+        {
+            lastKnownPosition = nearest.position;
+        }
+
         bool hadPlayer = playerVisible;
         currentPlayer = nearest;
         playerVisible = nearest != null;
+
+        if (playerVisible)
+        {
+            if (currentState == State.Investigating)
+            {
+                ChangeState(State.Chasing);
+            }
+        }
 
         if (playerVisible && !hadPlayer)
         {
@@ -409,8 +437,7 @@ public class EnemyMonsterAI : MonoBehaviour
             !returningToCrawl && !isTransitioning &&
             (currentState == State.Chasing || currentState == State.Attacking))
         {
-            DialogueManager.ShowEnemyChaseEndedDialogue();
-            StartCoroutine(ReturnToCrawl());
+            ChangeState(State.Investigating);
         }
     }
 
@@ -541,6 +568,35 @@ public class EnemyMonsterAI : MonoBehaviour
         }
     }
 
+    void Investigate()
+    {
+        if (currentState != State.Investigating) return;
+
+        agent.speed = walkSpeed;
+        agent.SetDestination(lastKnownPosition);
+
+        if (agent.isStopped)
+        {
+            agent.isStopped = false;
+        }
+
+        bool isMoving = agent.velocity.sqrMagnitude > movementThreshold;
+        anim.SetBool("isWalking", isMoving);
+        anim.SetBool("isCrawling", false);
+
+        if (isMoving)
+        {
+            UpdateFootsteps(walkFootstepClip, walkFootstepInterval);
+        }
+
+        
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f)
+        {
+            DialogueManager.ShowEnemyChaseEndedDialogue();
+            StartCoroutine(ReturnToCrawl());
+        }
+    }
+
     IEnumerator AttackCycle()
     {
         if (isAttacking || isTransitioning) yield break;
@@ -586,7 +642,7 @@ public class EnemyMonsterAI : MonoBehaviour
         {
             if (!returningToCrawl && hasAwakened)
             {
-                StartCoroutine(ReturnToCrawl());
+                ChangeState(State.Investigating);
             }
         }
 
@@ -827,12 +883,27 @@ public class EnemyMonsterAI : MonoBehaviour
 
     private IEnumerator PlayFootsteps(AudioClip clip, float interval)
     {
+
         while (true)
         {
-            if (currentState == State.Dead ||
-                agent.velocity.sqrMagnitude <= movementThreshold ||
-                currentFootstepClip != clip)
+            if (currentState == State.Dead)
             {
+
+                footstepCoroutine = null;
+                yield break;
+            }
+
+            if (agent.velocity.sqrMagnitude <= movementThreshold)
+            {
+                 
+                 
+                 footstepCoroutine = null;
+                 yield break;
+            }
+
+            if (currentFootstepClip != clip)
+            {
+
                 footstepCoroutine = null;
                 yield break;
             }
@@ -841,6 +912,11 @@ public class EnemyMonsterAI : MonoBehaviour
             {
                 audioSource.pitch = 1f + Random.Range(-pitchVariance, pitchVariance);
                 audioSource.PlayOneShot(clip);
+
+            }
+            else
+            {
+
             }
 
             yield return new WaitForSeconds(interval);
@@ -854,6 +930,13 @@ public class EnemyMonsterAI : MonoBehaviour
             return;
         }
 
+        
+        if (IsInvoking(nameof(StartFootstepsDelayed)) && currentFootstepClip == clip && currentFootstepInterval == interval)
+        {
+            return;
+        }
+
+
         StopFootsteps();
 
         currentFootstepClip = clip;
@@ -865,6 +948,7 @@ public class EnemyMonsterAI : MonoBehaviour
 
     private void StartFootstepsDelayed()
     {
+
         if (agent.velocity.sqrMagnitude > movementThreshold && currentFootstepClip != null)
         {
             footstepCoroutine = StartCoroutine(PlayFootsteps(currentFootstepClip, currentFootstepInterval));

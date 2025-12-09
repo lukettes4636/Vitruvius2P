@@ -20,7 +20,13 @@ public class Wall_Destruction : MonoBehaviour
 
     [Header("Control de Fisica Post-Destruccion")]
     public float physicsSimulationTime = 3.0f; 
-    public float cleanupTime = 0.0f;          
+    public float cleanupTime = 0.0f;
+    
+    [Header("Navegacion del Enemigo")]
+    public string enemyLayerName = "Enemy"; 
+    public string fragmentLayerName = "Debris"; 
+    public bool disableCollisionWithEnemy = true;
+    public bool removeFromNavMesh = true; 
 
 
     
@@ -57,10 +63,76 @@ public class Wall_Destruction : MonoBehaviour
         }
 
         
+        SetupFragments(brokenWall);
+        
         StartCoroutine(SimulateAndFreeze(brokenWall.transform, impactPoint, impactDirection));
 
         
         Destroy(gameObject);
+    }
+
+    private void SetupFragments(GameObject brokenWall)
+    {
+        
+        Collider[] fragmentColliders = brokenWall.GetComponentsInChildren<Collider>();
+        
+        
+        if (removeFromNavMesh)
+        {
+            UnityEngine.AI.NavMeshObstacle[] obstacles = brokenWall.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>();
+            foreach (var obstacle in obstacles)
+            {
+                obstacle.enabled = false;
+                
+                
+            }
+        }
+
+        
+        if (disableCollisionWithEnemy)
+        {
+            int enemyLayer = LayerMask.NameToLayer(enemyLayerName);
+            
+            
+            if (enemyLayer != -1)
+            {
+                foreach (Collider fragCol in fragmentColliders)
+                {
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                     GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
+                     foreach (GameObject enemy in enemies)
+                     {
+                         Collider[] enemyCols = enemy.GetComponentsInChildren<Collider>();
+                         foreach (Collider enemyCol in enemyCols)
+                         {
+                             Physics.IgnoreCollision(fragCol, enemyCol, true);
+                         }
+                     }
+                }
+            }
+        }
     }
 
     private IEnumerator SimulateAndFreeze(Transform parent, Vector3 impactPoint, Vector3 impactDirection)
