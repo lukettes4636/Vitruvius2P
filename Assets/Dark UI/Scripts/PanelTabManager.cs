@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -35,24 +35,52 @@ namespace Michsky.UI.Dark
 
         void Start()
         {
-            currentButton = buttons[currentPanelIndex];
-            currentButtonAnimator = currentButton.GetComponent<Animator>();
-            currentButtonAnimator.Play(buttonFadeIn);
+            if (buttons != null && buttons.Count > currentPanelIndex)
+            {
+                currentButton = buttons[currentPanelIndex];
+                if (currentButton != null)
+                {
+                    if (!currentButton.activeSelf) currentButton.SetActive(true);
+                    currentButtonAnimator = currentButton.GetComponent<Animator>();
+                    if (currentButtonAnimator != null) currentButtonAnimator.Play(buttonFadeIn);
+                }
+            }
 
-            currentPanel = panels[currentPanelIndex];
-            currentPanelAnimator = currentPanel.GetComponent<Animator>();
-            currentPanelAnimator.Play(panelFadeIn);
+            if (panels != null && panels.Count > currentPanelIndex)
+            {
+                currentPanel = panels[currentPanelIndex];
+                if (currentPanel != null)
+                {
+                    if (!currentPanel.activeSelf) currentPanel.SetActive(true);
+                    currentPanelAnimator = currentPanel.GetComponent<Animator>();
+                    if (currentPanelAnimator != null) currentPanelAnimator.Play(panelFadeIn);
+                }
+            }
         }
 
         public void OpenFirstTab()
         {
-            currentPanel = panels[currentPanelIndex];
-            currentPanelAnimator = currentPanel.GetComponent<Animator>();
-            currentPanelAnimator.Play(panelFadeIn);
+            if (panels != null && panels.Count > currentPanelIndex)
+            {
+                currentPanel = panels[currentPanelIndex];
+                if (currentPanel != null)
+                {
+                    if (!currentPanel.activeSelf) currentPanel.SetActive(true);
+                    currentPanelAnimator = currentPanel.GetComponent<Animator>();
+                    if (currentPanelAnimator != null) currentPanelAnimator.Play(panelFadeIn);
+                }
+            }
 
-            currentButton = buttons[currentPanelIndex];
-            currentButtonAnimator = currentButton.GetComponent<Animator>();
-            currentButtonAnimator.Play(buttonFadeIn);
+            if (buttons != null && buttons.Count > currentPanelIndex)
+            {
+                currentButton = buttons[currentPanelIndex];
+                if (currentButton != null)
+                {
+                    if (!currentButton.activeSelf) currentButton.SetActive(true);
+                    currentButtonAnimator = currentButton.GetComponent<Animator>();
+                    if (currentButtonAnimator != null) currentButtonAnimator.Play(buttonFadeIn);
+                }
+            }
         }
 
         public void PanelAnim(int newPanel)

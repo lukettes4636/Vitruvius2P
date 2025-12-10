@@ -6,7 +6,6 @@ using UnityEngine;
 
 public static class RemoveMissingComponents
 {
-    [MenuItem("Tools/Audit/Remove Missing Components (Scenes & Prefabs)")]
     public static void Run()
     {
         var sceneGuids = AssetDatabase.FindAssets("t:Scene");

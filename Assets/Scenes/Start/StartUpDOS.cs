@@ -14,6 +14,11 @@ public class StartUpDOS : MonoBehaviour
 
     void Start()
     {
+        // Start Music (Music1)
+        if (SoundManager.instance != null)
+        {
+            SoundManager.instance.PlayMusic(MusicID.Music1, true);
+        }
         StartCoroutine(TextChangeAnim());
     }
 

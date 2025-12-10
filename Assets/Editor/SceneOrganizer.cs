@@ -5,7 +5,6 @@ using UnityEngine.SceneManagement;
 
 public class SceneOrganizer
 {
-    [MenuItem("Tools/Organize DaVinciPB Scene")]
     public static void OrganizeDaVinciPB()
     {
         string scenePath = "Assets/Scenes/DaVinciPB.unity";

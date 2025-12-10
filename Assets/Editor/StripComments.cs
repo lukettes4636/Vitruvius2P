@@ -12,7 +12,6 @@ public static class StripComments
         TryStripAll();
     }
 
-    [MenuItem("Tools/Scripts/Strip All Comments")] 
     public static void StripAllMenu()
     {
         TryStripAll();

@@ -12,7 +12,6 @@ public static class StripDebugLogs
         Run();
     }
 
-    [MenuItem("Tools/Scripts/Strip Debug Logs")] 
     private static void RunMenu()
     {
         Run();

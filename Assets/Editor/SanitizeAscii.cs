@@ -13,7 +13,6 @@ public static class SanitizeAscii
         Run();
     }
 
-    [MenuItem("Tools/Scripts/Sanitize ASCII")] 
     private static void RunMenu()
     {
         Run();

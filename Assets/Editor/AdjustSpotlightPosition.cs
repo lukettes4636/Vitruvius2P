@@ -5,7 +5,6 @@ using VLB;
 
 public class AdjustSpotlightPosition : EditorWindow
 {
-    [MenuItem("Tools/Adjust Spotlight Positions")]
     public static void ShowWindow()
     {
         GetWindow<AdjustSpotlightPosition>("Adjust Spotlight Positions");

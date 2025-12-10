@@ -150,7 +150,7 @@ public abstract class PlayerControllerBase : MonoBehaviour
     protected virtual void InitializeInput()
     {
         if (collectAction != null) collectAction.action.performed += ctx => TryInteract();
-       
+        if (toggleRingAction != null) toggleRingAction.action.performed += ctx => OnToggleRing();
         if (inventoryAction != null) inventoryAction.action.performed += ctx => ToggleInventory();
         
         if (liftDoorAction != null)
@@ -404,7 +404,7 @@ public abstract class PlayerControllerBase : MonoBehaviour
         }
     }
 
-   
+    protected void OnToggleRing() { if (!isInUI) noiseEmitter?.ToggleRingVisibility(); }
     
     protected void ToggleInventory()
     {

@@ -7,7 +7,6 @@ using UnityEngine;
 
 public static class ScriptUsageAudit
 {
-    [MenuItem("Tools/Audit/Script Usage Report")] 
     public static void Report()
     {
         var scriptGuids = AssetDatabase.FindAssets("t:MonoScript", new[] { "Assets/scripts" });
