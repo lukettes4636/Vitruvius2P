@@ -8,7 +8,7 @@ public class MovJugador1 : MonoBehaviour
     [Header("Velocidades")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float runSpeed = 8f;
-    [SerializeField] private float crouchSpeed = 6.4f;
+    [SerializeField] private float crouchSpeed = 8.96f;
     [SerializeField] private float rotationSpeed = 10f;
     [SerializeField] private float gravity = -9.81f;
 

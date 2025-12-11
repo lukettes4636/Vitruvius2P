@@ -8,7 +8,7 @@ public abstract class PlayerControllerBase : MonoBehaviour
     [Header("Velocidades")]
     [SerializeField] protected float moveSpeed = 5f;
     [SerializeField] protected float runSpeed = 8f;
-    [SerializeField] protected float crouchSpeed = 6.4f;
+    [SerializeField] protected float crouchSpeed = 8.96f;
     [SerializeField] protected float rotationSpeed = 10f;
     [SerializeField] protected float gravity = -9.81f;
 
