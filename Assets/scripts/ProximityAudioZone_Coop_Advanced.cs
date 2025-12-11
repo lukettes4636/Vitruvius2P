@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 [RequireComponent(typeof(AudioSource))]
 [AddComponentMenu("Audio/Proximity Audio Zone (Co-op Curve)")]
@@ -23,7 +23,12 @@ public class ProximityAudioZone_Coop_Advanced : MonoBehaviour
     public float maxVolume = 1f;
 
     [Tooltip("Velocidad de cambio de volumen (fade in/out).")]
+
     public float volumeChangeSpeed = 2f;
+
+    [Tooltip("Spatial Blend (0 = 2D, 1 = 3D).")]
+    [Range(0f, 1f)]
+    public float spatialBlend = 1f;
 
     [Header("📈 Volumen por distancia (editable)")]
     [Tooltip("Curve that defines how volume changes with distance (0 = near, 1 = far).")]
@@ -64,14 +69,15 @@ public class ProximityAudioZone_Coop_Advanced : MonoBehaviour
     private AudioSource audioSource;
     private AudioLowPassFilter lowPassFilter;
     private bool hasActivated = false;
-    private float currentOcclusion = 1f;
+    private float currentOcclusionP1 = 1f;
+    private float currentOcclusionP2 = 1f;
 
     void Start()
     {
         audioSource = GetComponent<AudioSource>();
         audioSource.loop = true;
         audioSource.playOnAwake = false;
-        audioSource.spatialBlend = 1f; 
+        audioSource.spatialBlend = spatialBlend; 
         audioSource.volume = 0f;
         audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
         audioSource.maxDistance = maxDistance;
@@ -96,11 +102,38 @@ public class ProximityAudioZone_Coop_Advanced : MonoBehaviour
     {
         if (player1 == null && player2 == null) return;
 
-        float volume1 = GetPlayerVolume(player1);
-        float volume2 = GetPlayerVolume(player2);
+        
+        float finalVol1 = 0f;
+        if (player1 != null)
+        {
+            float dist1 = Vector3.Distance(player1.position, transform.position);
+            UpdatePlayerOcclusion(player1, dist1, ref currentOcclusionP1);
+            if (dist1 <= maxDistance)
+            {
+                float baseVol1 = CalculateBaseVolume(dist1);
+                finalVol1 = baseVol1 * currentOcclusionP1;
+            }
+        }
 
         
-        float targetVolume = Mathf.Max(volume1, volume2);
+        float finalVol2 = 0f;
+        if (player2 != null)
+        {
+            float dist2 = Vector3.Distance(player2.position, transform.position);
+            UpdatePlayerOcclusion(player2, dist2, ref currentOcclusionP2);
+            if (dist2 <= maxDistance)
+            {
+                float baseVol2 = CalculateBaseVolume(dist2);
+                finalVol2 = baseVol2 * currentOcclusionP2;
+            }
+        }
+
+        
+        float targetVolume = Mathf.Max(finalVol1, finalVol2);
+
+        
+        
+        float dominantOcclusion = (finalVol1 >= finalVol2) ? currentOcclusionP1 : currentOcclusionP2;
 
         
         if (requireEntryToStart && !hasActivated && targetVolume > 0.01f)
@@ -112,10 +145,9 @@ public class ProximityAudioZone_Coop_Advanced : MonoBehaviour
         
         audioSource.volume = Mathf.Lerp(audioSource.volume, targetVolume, Time.deltaTime * volumeChangeSpeed);
 
-        
         if (useLowPassFilter && lowPassFilter != null)
         {
-            float targetCutoff = Mathf.Lerp(normalCutoffFrequency, occludedCutoffFrequency, 1f - currentOcclusion);
+            float targetCutoff = Mathf.Lerp(normalCutoffFrequency, occludedCutoffFrequency, 1f - dominantOcclusion);
             lowPassFilter.cutoffFrequency = Mathf.MoveTowards(
                 lowPassFilter.cutoffFrequency,
                 targetCutoff,
@@ -131,29 +163,26 @@ public class ProximityAudioZone_Coop_Advanced : MonoBehaviour
         }
     }
 
-    private float GetPlayerVolume(Transform player)
+    private void UpdatePlayerOcclusion(Transform player, float distance, ref float currentOcclusion)
     {
-        if (player == null) return 0f;
+        float target = 1f;
+        float checkDist = Mathf.Min(distance, maxDistance);
 
-        float distance = Vector3.Distance(player.position, transform.position);
-        if (distance > maxDistance) return 0f;
-
-        
-        
-        float baseVolume = maxVolume;
-
-        
         Vector3 direction = (player.position - transform.position).normalized;
-        float occlusionTarget = 1f;
-
-        if (Physics.Raycast(transform.position, direction, out RaycastHit hit, maxDistance, occlusionLayers))
+        
+        if (Physics.Raycast(transform.position, direction, out RaycastHit hit, checkDist, occlusionLayers))
         {
             if (hit.transform != player)
-                occlusionTarget = occlusionVolumeMultiplier;
+                target = occlusionVolumeMultiplier;
         }
 
-        currentOcclusion = Mathf.Lerp(currentOcclusion, occlusionTarget, Time.deltaTime * occlusionFadeSpeed);
-        return baseVolume * currentOcclusion;
+        currentOcclusion = Mathf.Lerp(currentOcclusion, target, Time.deltaTime * occlusionFadeSpeed);
+    }
+
+    private float CalculateBaseVolume(float distance)
+    {
+        float normalizedDist = Mathf.Clamp01(distance / maxDistance);
+        return maxVolume * distanceVolumeCurve.Evaluate(normalizedDist);
     }
 
 #if UNITY_EDITOR
