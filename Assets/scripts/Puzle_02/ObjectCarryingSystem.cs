@@ -9,18 +9,36 @@ public class ObjectCarryingSystem : MonoBehaviour
     public Transform leftHandTarget;
     public Transform rightHandTarget;
 
-    [Header("Settings")]
+    [Header("Referencias de Codos (Hints)")]
+    [Tooltip("Arrastra aqui el objeto Hint_L")]
+    public Transform leftElbowHint;
+    [Tooltip("Arrastra aqui el objeto Hint_R")]
+    public Transform rightElbowHint;
+
+    [Header("Configuracion General")]
     public float transitionSpeed = 8f;
 
-    [Header("Throw Animation Settings")]
-    [Tooltip("Distancia hacia adelante desde el CUERPO del personaje")]
-    public float throwForwardOffset = 1.2f;
+    [Header("Polishing - Inercia y Respiracion")]
+    [Tooltip("Cantidad de movimiento vertical al respirar/caminar")]
+    public float bobAmount = 0.05f;
+    [Tooltip("Velocidad del movimiento vertical")]
+    public float bobSpeed = 2f;
+    [Tooltip("Que tanto se abren los codos al cargar algo")]
+    public float elbowOutOffset = 0.3f;
 
-    [Tooltip("Altura relativa al punto de origen de las manos")]
-    public float throwUpwardOffset = 0.0f; 
+    [Header("Configuracion de Lanzamiento")]
+    [Tooltip("Dibuja la curva en el inspector: Eje Y(0 a 1) es el progreso. Haz que empiece lento y suba rapido.")]
+    public AnimationCurve throwVelocityCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
-    [Tooltip("Velocidad del empuje")]
-    public float throwAnimationSpeed = 15f;
+    
+    private float _currentThrowForward;
+    private float _currentThrowUpward;
+    private float _currentThrowSpeed;
+
+    
+    private float defaultThrowForward = 1.2f;
+    private float defaultThrowUpward = 0.1f;
+    private float defaultThrowSpeed = 15f;
 
     
     private Transform _gripL;
@@ -30,15 +48,26 @@ public class ObjectCarryingSystem : MonoBehaviour
     private bool _isThrowing = false;
     private float _targetWeight = 0f;
 
-    
     private Vector3 _throwTargetPosL;
     private Vector3 _throwTargetPosR;
     private Quaternion _throwTargetRotL;
     private Quaternion _throwTargetRotR;
 
+    
+    private Vector3 _defaultHintPosL;
+    private Vector3 _defaultHintPosR;
+
     private void Start()
     {
         if (carryingRig != null) carryingRig.weight = 0f;
+
+        _currentThrowForward = defaultThrowForward;
+        _currentThrowUpward = defaultThrowUpward;
+        _currentThrowSpeed = defaultThrowSpeed;
+
+        
+        if (leftElbowHint) _defaultHintPosL = leftElbowHint.localPosition;
+        if (rightElbowHint) _defaultHintPosR = rightElbowHint.localPosition;
     }
 
     private void LateUpdate()
@@ -48,23 +77,62 @@ public class ObjectCarryingSystem : MonoBehaviour
         
         carryingRig.weight = Mathf.Lerp(carryingRig.weight, _targetWeight, Time.deltaTime * transitionSpeed);
 
+        
+        
+        if (_isCarrying || _isThrowing)
+        {
+            if (leftElbowHint)
+                leftElbowHint.localPosition = Vector3.Lerp(leftElbowHint.localPosition, _defaultHintPosL + (Vector3.left * elbowOutOffset), Time.deltaTime * 5f);
+
+            if (rightElbowHint)
+                rightElbowHint.localPosition = Vector3.Lerp(rightElbowHint.localPosition, _defaultHintPosR + (Vector3.right * elbowOutOffset), Time.deltaTime * 5f);
+        }
+        else
+        {
+            
+            if (leftElbowHint) leftElbowHint.localPosition = Vector3.Lerp(leftElbowHint.localPosition, _defaultHintPosL, Time.deltaTime * 5f);
+            if (rightElbowHint) rightElbowHint.localPosition = Vector3.Lerp(rightElbowHint.localPosition, _defaultHintPosR, Time.deltaTime * 5f);
+        }
+
+        
         if (_isThrowing)
         {
             
-            leftHandTarget.position = Vector3.Lerp(leftHandTarget.position, _throwTargetPosL, Time.deltaTime * throwAnimationSpeed);
-            rightHandTarget.position = Vector3.Lerp(rightHandTarget.position, _throwTargetPosR, Time.deltaTime * throwAnimationSpeed);
-
-            leftHandTarget.rotation = Quaternion.Lerp(leftHandTarget.rotation, _throwTargetRotL, Time.deltaTime * throwAnimationSpeed);
-            rightHandTarget.rotation = Quaternion.Lerp(rightHandTarget.rotation, _throwTargetRotR, Time.deltaTime * throwAnimationSpeed);
+            
         }
         else if (_isCarrying && _gripL != null && _gripR != null)
         {
             
-            leftHandTarget.position = _gripL.position;
-            leftHandTarget.rotation = _gripL.rotation;
+            
+            float breathingEffect = Mathf.Sin(Time.time * bobSpeed) * bobAmount;
+            Vector3 bobVector = new Vector3(0, breathingEffect, 0);
 
-            rightHandTarget.position = _gripR.position;
-            rightHandTarget.rotation = _gripR.rotation;
+            
+            
+            
+            float handFollowSpeed = 20f; 
+
+            leftHandTarget.position = Vector3.Lerp(leftHandTarget.position, _gripL.position + bobVector, Time.deltaTime * handFollowSpeed);
+            leftHandTarget.rotation = Quaternion.Slerp(leftHandTarget.rotation, _gripL.rotation, Time.deltaTime * handFollowSpeed);
+
+            rightHandTarget.position = Vector3.Lerp(rightHandTarget.position, _gripR.position + bobVector, Time.deltaTime * handFollowSpeed);
+            rightHandTarget.rotation = Quaternion.Slerp(rightHandTarget.rotation, _gripR.rotation, Time.deltaTime * handFollowSpeed);
+        }
+    }
+
+    public void ApplyProfile(PlayerGrabProfile profile)
+    {
+        if (profile != null)
+        {
+            _currentThrowForward = profile.ThrowArmReach;
+            _currentThrowUpward = profile.ThrowArmHeight;
+            _currentThrowSpeed = profile.ThrowAnimationSpeed;
+        }
+        else
+        {
+            _currentThrowForward = defaultThrowForward;
+            _currentThrowUpward = defaultThrowUpward;
+            _currentThrowSpeed = defaultThrowSpeed;
         }
     }
 
@@ -104,30 +172,53 @@ public class ObjectCarryingSystem : MonoBehaviour
         _isThrowing = true;
         _targetWeight = 1f;
 
-        
-        
         Vector3 forwardDir = transform.forward;
         Vector3 upDir = transform.up;
+        Vector3 displacement = (forwardDir * _currentThrowForward) + (upDir * _currentThrowUpward);
 
         
-        Vector3 displacement = (forwardDir * throwForwardOffset) + (upDir * throwUpwardOffset);
+        Vector3 startPosL = leftHandTarget.position;
+        Vector3 startPosR = rightHandTarget.position;
 
-        
-        
-        
-        _throwTargetPosL = leftHandTarget.position + displacement;
-        _throwTargetPosR = rightHandTarget.position + displacement;
+        _throwTargetPosL = startPosL + displacement;
+        _throwTargetPosR = startPosR + displacement;
 
-        
         _throwTargetRotL = leftHandTarget.rotation;
         _throwTargetRotR = rightHandTarget.rotation;
 
-        StartCoroutine(StopThrowingRoutine());
+        
+        StartCoroutine(AnimateThrowCurve(startPosL, startPosR));
     }
 
-    private IEnumerator StopThrowingRoutine()
+    
+    private IEnumerator AnimateThrowCurve(Vector3 startL, Vector3 startR)
     {
-        yield return new WaitForSeconds(0.4f);
+        float timer = 0f;
+        
+        
+        float duration = 0.25f; 
+
+        while (timer < duration)
+        {
+            timer += Time.deltaTime;
+            float progress = timer / duration;
+
+            
+            float curveValue = throwVelocityCurve.Evaluate(progress);
+
+            
+            leftHandTarget.position = Vector3.Lerp(startL, _throwTargetPosL, curveValue);
+            rightHandTarget.position = Vector3.Lerp(startR, _throwTargetPosR, curveValue);
+
+            
+            leftHandTarget.rotation = _throwTargetRotL;
+            rightHandTarget.rotation = _throwTargetRotR;
+
+            yield return null;
+        }
+
+        
+        yield return new WaitForSeconds(0.15f);
 
         _isThrowing = false;
         _isCarrying = false;

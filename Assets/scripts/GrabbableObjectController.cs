@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
 using System.Linq;
@@ -11,67 +11,40 @@ namespace Gameplay
     public class GrabbableObjectController : MonoBehaviour
     {
         [Header("Input Settings")]
-        [Tooltip("Action name for picking up/dropping the object")]
         public string ActionName = "Interact";
-
-        [Tooltip("Input action reference for throwing (assign in Inspector)")]
-        public InputActionReference ThrowActionReference;
+        public string ThrowActionName = "Throw";
 
         [Header("Interaction Settings")]
-        [Tooltip("Maximum distance from player to allow pickup")]
         public float GrabRadius = 2.0f;
 
-        [Header("Posicion y Rotacion (De Pie)")]
-        [Tooltip("Posicion local cuando el jugador esta DE PIE")]
+        [Header("Posicion Base del Objeto")]
         public Vector3 HoldOffset = new Vector3(0.5f, 0.8f, 0.7f);
-
-        [Tooltip("Rotacion local cuando el jugador esta DE PIE")]
         public Vector3 HoldRotation = Vector3.zero;
 
-        [Header("Posicion y Rotacion (Agachado)")]
-        [Tooltip("Posicion local cuando el jugador esta AGACHADO")]
+        [Header("Posicion Agachado")]
         public Vector3 CrouchHoldOffset = new Vector3(0.5f, 0.45f, 0.7f);
-
-        [Tooltip("Rotacion local cuando el jugador esta AGACHADO (Ej: inclinarlo un poco)")]
-        public Vector3 CrouchHoldRotation = new Vector3(15f, 0f, 0f); 
+        public Vector3 CrouchHoldRotation = new Vector3(15f, 0f, 0f);
 
         [Header("Suavizado")]
-        [Tooltip("Velocidad de ajuste de posicion/rotacion (Agacharse/Levantarse)")]
         public float positionSmoothSpeed = 10f;
-
-        [Tooltip("Layer mask for detecting players")]
         public LayerMask PlayerLayer = -1;
 
         [Header("Throw Settings")]
-        [Tooltip("Horizontal force applied when throwing")]
         public float ThrowForce = 12f;
-
-        [Tooltip("Upward force for arc trajectory")]
         public float ThrowUpwardForce = 3f;
-
-        [Tooltip("Delay before releasing physics to sync with animation")]
         public float ThrowAnimationDelay = 0.15f;
-
-        [Tooltip("How far forward the object moves visually before release")]
         public float VisualThrowDistance = 1.2f;
 
         [Header("Audio Settings")]
-        [Tooltip("Sound played when object hits something")]
         public AudioClip CollisionSound;
-
-        [Tooltip("Volume of the collision sound")]
-        [Range(0f, 1f)]
-        public float CollisionVolume = 1f;
-
-        [Tooltip("Max distance at which the collision sound is audible")]
+        [Range(0f, 1f)] public float CollisionVolume = 1f;
         public float NoiseRange = 15f;
-
-        [Tooltip("Minimum impact velocity requried to play sound")]
         public float MinCollisionForce = 2f;
 
         [Header("Debug")]
         public bool VerboseLogging = false;
 
+        
         protected Rigidbody rb;
         protected Collider col;
         protected AudioSource audioSource;
@@ -82,6 +55,7 @@ namespace Gameplay
 
         protected Collider currentHolderCollider;
         protected Animator holderAnimator;
+        protected PlayerGrabProfile currentHolderProfile; 
 
         public bool IsHeld => isHeld;
         public Transform CurrentHolder => currentHolder;
@@ -92,13 +66,7 @@ namespace Gameplay
             col = GetComponent<Collider>();
             audioSource = GetComponent<AudioSource>();
             originalParent = transform.parent;
-
             SetupAudioSource();
-
-            if (ThrowActionReference != null)
-            {
-                ThrowActionReference.action.Enable();
-            }
         }
 
         protected void SetupAudioSource()
@@ -112,47 +80,25 @@ namespace Gameplay
             }
         }
 
-        protected virtual void OnDestroy()
-        {
-            if (ThrowActionReference != null)
-            {
-                ThrowActionReference.action.Disable();
-            }
-        }
-
         protected virtual void Update()
         {
-            if (isHeld)
-            {
-                HandleHeldState();
-            }
-            else
-            {
-                HandleIdleState();
-            }
+            if (isHeld) HandleHeldState();
+            else HandleIdleState();
         }
 
         protected virtual void HandleIdleState()
         {
             Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, GrabRadius, PlayerLayer);
-
             foreach (var nearbyCol in nearbyColliders)
             {
                 PlayerInput playerInput = nearbyCol.GetComponentInParent<PlayerInput>();
-                if (playerInput == null) continue;
-                if (playerInput.actions == null) continue;
-
-                if (IsPlayerHoldingSomething(playerInput.transform))
-                {
-                    continue;
-                }
+                if (playerInput == null || playerInput.actions == null) continue;
+                if (IsPlayerHoldingSomething(playerInput.transform)) continue;
 
                 InputAction interactAction = playerInput.actions.FindAction(ActionName);
-                if (interactAction == null) continue;
-
-                if (interactAction.WasPerformedThisFrame())
+                if (interactAction != null && interactAction.WasPerformedThisFrame())
                 {
-                    Log($"Player {playerInput.name} picking up {gameObject.name}");
+
                     Pickup(playerInput.transform);
                     break;
                 }
@@ -161,15 +107,9 @@ namespace Gameplay
 
         protected virtual void HandleHeldState()
         {
-            if (currentHolder == null)
-            {
-                Drop();
-                return;
-            }
+            if (currentHolder == null) { Drop(); return; }
 
-            
             UpdateHeldPositionAndRotation();
-            
 
             if (isThrowingInProgress) return;
 
@@ -177,47 +117,43 @@ namespace Gameplay
             if (playerInput == null) playerInput = currentHolder.GetComponentInParent<PlayerInput>();
             if (playerInput == null || playerInput.actions == null) return;
 
+            
             InputAction interactAction = playerInput.actions.FindAction(ActionName);
             if (interactAction != null && interactAction.WasPerformedThisFrame())
             {
-                Log($"Drop action triggered for {gameObject.name}");
                 Drop();
                 return;
             }
 
-            if (ThrowActionReference != null && ThrowActionReference.action != null)
+            
+            InputAction throwAction = playerInput.actions.FindAction(ThrowActionName);
+            if (throwAction != null && throwAction.WasPerformedThisFrame())
             {
-                if (ThrowActionReference.action.WasPerformedThisFrame())
-                {
-                    Log($"Throw action triggered for {gameObject.name}");
-                    StartCoroutine(ThrowSequence());
-                    return;
-                }
+                StartCoroutine(ThrowSequence());
+                return;
             }
         }
 
-        
         protected void UpdateHeldPositionAndRotation()
         {
-            Vector3 targetOffset = HoldOffset;
-            Vector3 targetRotation = HoldRotation;
+            Vector3 finalTargetOffset = HoldOffset;
+            Vector3 finalTargetRotation = HoldRotation;
 
-            
-            if (holderAnimator != null)
+            if (holderAnimator != null && holderAnimator.GetBool("IsCrouching"))
             {
-                bool isCrouching = holderAnimator.GetBool("IsCrouching");
-                if (isCrouching)
-                {
-                    targetOffset = CrouchHoldOffset;
-                    targetRotation = CrouchHoldRotation; 
-                }
+                finalTargetOffset = CrouchHoldOffset;
+                finalTargetRotation = CrouchHoldRotation;
             }
 
             
-            transform.localPosition = Vector3.Lerp(transform.localPosition, targetOffset, Time.deltaTime * positionSmoothSpeed);
+            if (currentHolderProfile != null)
+            {
+                finalTargetOffset += currentHolderProfile.HoldPositionOffset;
+                finalTargetRotation += currentHolderProfile.HoldRotationOffset;
+            }
 
-            
-            transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(targetRotation), Time.deltaTime * positionSmoothSpeed);
+            transform.localPosition = Vector3.Lerp(transform.localPosition, finalTargetOffset, Time.deltaTime * positionSmoothSpeed);
+            transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(finalTargetRotation), Time.deltaTime * positionSmoothSpeed);
         }
 
         protected bool IsPlayerHoldingSomething(Transform playerTransform)
@@ -228,8 +164,6 @@ namespace Gameplay
 
         public virtual void Pickup(Transform holder)
         {
-            Log($"{gameObject.name} picked up by {holder.name}");
-
             isHeld = true;
             isThrowingInProgress = false;
             currentHolder = holder;
@@ -237,29 +171,35 @@ namespace Gameplay
             holderAnimator = holder.GetComponent<Animator>();
             if (holderAnimator == null) holderAnimator = holder.GetComponentInParent<Animator>();
 
+            
+            currentHolderProfile = holder.GetComponent<PlayerGrabProfile>();
+            if (currentHolderProfile == null) currentHolderProfile = holder.GetComponentInParent<PlayerGrabProfile>();
+
             currentHolderCollider = holder.GetComponent<Collider>();
             if (currentHolderCollider == null) currentHolderCollider = holder.GetComponentInParent<Collider>();
 
-            if (currentHolderCollider != null && col != null)
-            {
-                Physics.IgnoreCollision(col, currentHolderCollider, true);
-            }
+            if (currentHolderCollider != null && col != null) Physics.IgnoreCollision(col, currentHolderCollider, true);
 
             rb.isKinematic = true;
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
-
             transform.SetParent(holder);
 
             
-            transform.localPosition = HoldOffset;
+            Vector3 initialOffset = HoldOffset;
+            if (currentHolderProfile != null) initialOffset += currentHolderProfile.HoldPositionOffset;
+
+            transform.localPosition = initialOffset;
             transform.localEulerAngles = HoldRotation;
 
+            
             var ikSystem = holder.GetComponent<ObjectCarryingSystem>();
             if (ikSystem == null) ikSystem = holder.GetComponentInParent<ObjectCarryingSystem>();
 
             if (ikSystem != null)
             {
+                
+                ikSystem.ApplyProfile(currentHolderProfile);
                 ikSystem.StartCarrying(this.gameObject);
             }
         }
@@ -271,23 +211,16 @@ namespace Gameplay
                 var ikSystem = currentHolder.GetComponent<ObjectCarryingSystem>();
                 if (ikSystem == null) ikSystem = currentHolder.GetComponentInParent<ObjectCarryingSystem>();
 
-                if (ikSystem != null)
-                {
-                    ikSystem.StopCarrying();
-                }
+                if (ikSystem != null) ikSystem.StopCarrying();
             }
 
-            if (currentHolderCollider != null && col != null)
-            {
-                StartCoroutine(ResetCollisionDelay(col, currentHolderCollider, 0.5f));
-            }
-
-            Log($"{gameObject.name} dropped");
+            if (currentHolderCollider != null && col != null) StartCoroutine(ResetCollisionDelay(col, currentHolderCollider, 0.5f));
 
             isHeld = false;
             isThrowingInProgress = false;
             currentHolder = null;
             holderAnimator = null;
+            currentHolderProfile = null;
 
             transform.SetParent(originalParent);
             rb.isKinematic = false;
@@ -301,23 +234,16 @@ namespace Gameplay
             var ikSystem = currentHolder.GetComponent<ObjectCarryingSystem>();
             if (ikSystem == null) ikSystem = currentHolder.GetComponentInParent<ObjectCarryingSystem>();
 
-            if (ikSystem != null)
-            {
-                ikSystem.PlayThrowAnimation();
-            }
+            if (ikSystem != null) ikSystem.PlayThrowAnimation();
 
             float elapsedTime = 0f;
             Vector3 startPos = transform.localPosition;
-
-            
             Vector3 targetLocalPos = startPos + (Vector3.forward * VisualThrowDistance) + (Vector3.up * 0.2f);
 
             while (elapsedTime < ThrowAnimationDelay)
             {
                 if (currentHolder == null) yield break;
-
                 transform.localPosition = Vector3.Lerp(startPos, targetLocalPos, elapsedTime / ThrowAnimationDelay);
-
                 elapsedTime += Time.deltaTime;
                 yield return null;
             }
@@ -327,60 +253,39 @@ namespace Gameplay
 
         protected void ExecutePhysicsThrow()
         {
-            if (currentHolder == null)
-            {
-                Drop();
-                return;
-            }
+            if (currentHolder == null) { Drop(); return; }
 
             Vector3 throwDirection = currentHolder.forward;
-
-            Log($"Throwing {gameObject.name} with force {ThrowForce}");
-
             Collider tempHolderCollider = currentHolderCollider;
 
             isHeld = false;
             isThrowingInProgress = false;
             currentHolder = null;
             holderAnimator = null;
+            currentHolderProfile = null;
             currentHolderCollider = null;
 
             transform.SetParent(originalParent);
-
             rb.isKinematic = false;
 
             Vector3 forceVector = (throwDirection * ThrowForce) + (Vector3.up * ThrowUpwardForce);
             rb.AddForce(forceVector, ForceMode.Impulse);
+            rb.AddTorque(UnityEngine.Random.insideUnitSphere * 10f, ForceMode.Impulse);
 
-            Vector3 randomTorque = UnityEngine.Random.insideUnitSphere * 10f;
-            rb.AddTorque(randomTorque, ForceMode.Impulse);
-
-            if (tempHolderCollider != null && col != null)
-            {
-                StartCoroutine(ResetCollisionDelay(col, tempHolderCollider, 0.5f));
-            }
+            if (tempHolderCollider != null && col != null) StartCoroutine(ResetCollisionDelay(col, tempHolderCollider, 0.5f));
         }
 
         private IEnumerator ResetCollisionDelay(Collider objectCol, Collider playerCol, float delay)
         {
             if (objectCol == null || playerCol == null) yield break;
-
             yield return new WaitForSeconds(delay);
-
-            if (objectCol != null && playerCol != null)
-            {
-                Physics.IgnoreCollision(objectCol, playerCol, false);
-            }
+            if (objectCol != null && playerCol != null) Physics.IgnoreCollision(objectCol, playerCol, false);
         }
 
         protected virtual void OnCollisionEnter(Collision collision)
         {
             if (isHeld) return;
-
-            if (collision.relativeVelocity.magnitude >= MinCollisionForce)
-            {
-                PlayCollisionSound(collision.relativeVelocity.magnitude);
-            }
+            if (collision.relativeVelocity.magnitude >= MinCollisionForce) PlayCollisionSound(collision.relativeVelocity.magnitude);
         }
 
         protected void PlayCollisionSound(float impactMagnitude)
@@ -389,36 +294,9 @@ namespace Gameplay
             {
                 float dynamicVolume = Mathf.Clamp(impactMagnitude / 10f, 0.2f, 1f) * CollisionVolume;
                 audioSource.PlayOneShot(CollisionSound, dynamicVolume);
-                Log($"Played collision sound with volume {dynamicVolume}");
             }
         }
 
-        protected virtual void OnDrawGizmosSelected()
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(transform.position, GrabRadius);
 
-            if (audioSource != null)
-            {
-                Gizmos.color = Color.blue;
-                Gizmos.DrawWireSphere(transform.position, NoiseRange);
-            }
-        }
-
-        protected void Log(string message)
-        {
-            if (VerboseLogging)
-            {
-
-            }
-        }
-
-        protected void LogWarning(string message)
-        {
-            if (VerboseLogging)
-            {
-
-            }
-        }
     }
 }
