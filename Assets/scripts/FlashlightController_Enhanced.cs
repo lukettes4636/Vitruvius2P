@@ -276,6 +276,9 @@ public class FlashlightController_Enhanced : MonoBehaviour
         {
             flashlightAnimator.SetBool(animationBoolParameter, state);
         }
+
+        
+        ToggleAllChildObjects(state);
     }
 
     void RotateFlashlight()
@@ -317,6 +320,43 @@ public class FlashlightController_Enhanced : MonoBehaviour
         isFlashlightOn = state;
         isAnimating = false;
         SetFlashlightState(state, true);
+    }
+
+    
+    private void ToggleAllChildObjects(bool state)
+    {
+        
+        Light[] allLights = GetComponentsInChildren<Light>(true);
+        foreach (Light light in allLights)
+        {
+            if (light != flashlight) 
+            {
+                light.enabled = state;
+            }
+        }
+
+        
+        Behaviour[] allBehaviours = GetComponentsInChildren<Behaviour>(true);
+        foreach (Behaviour behaviour in allBehaviours)
+        {
+            if (behaviour != volumetricBeam && behaviour != this)
+            {
+                
+                if (behaviour.GetType().Name.Contains("Spotlight") || 
+                    behaviour.GetType().Name.Contains("Light") ||
+                    behaviour.GetType().Name.Contains("VLB"))
+                {
+                    behaviour.enabled = state;
+                }
+            }
+        }
+
+        
+        Renderer[] allRenderers = GetComponentsInChildren<Renderer>(true);
+        foreach (Renderer renderer in allRenderers)
+        {
+            renderer.enabled = state;
+        }
     }
 
     private void InitializeVLBBeam()
