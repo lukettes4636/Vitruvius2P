@@ -11,5 +11,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/DaVinciPB.unity
     guid: baa59eeaf4af2234f9dd3705d0c95006
+  - enabled: 1
+    path: Assets/Scenes/DaVinciP1.unity
+    guid: 79a7dbcb513e7224eab8d228830bc884
   m_configObjects:
     com.unity.input.settings: {fileID: 11400000, guid: fb2dc88b7137bbf4eb44ad1949960159, type: 2}
