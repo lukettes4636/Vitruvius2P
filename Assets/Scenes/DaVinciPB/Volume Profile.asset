@@ -150,7 +150,7 @@ MonoBehaviour:
     dimension: 1
   bloomIntensity:
     m_OverrideState: 1
-    m_Value: 0.3
+    m_Value: 0.1
   bloomThreshold:
     m_OverrideState: 1
     m_Value: 0.8
