@@ -778,7 +778,7 @@ public class PauseController : MonoBehaviour
             }
         }
 
-        if (blurVolume != null)
+        if (blurVolume != null && blurVolume.profile != null)
         {
             
             if (blurVolume.profile.TryGet(out depthOfField))
@@ -787,17 +787,39 @@ public class PauseController : MonoBehaviour
                 
                 
                 depthOfField.active = false; 
+                depthOfField.mode.overrideState = true;
                 depthOfField.mode.value = DepthOfFieldMode.Bokeh;
+                
+                depthOfField.focusDistance.overrideState = true;
                 depthOfField.focusDistance.value = blurIntensity;
+                
+                depthOfField.aperture.overrideState = true;
                 depthOfField.aperture.value = blurIntensity / 10f;
+                
+                depthOfField.focalLength.overrideState = true;
                 depthOfField.focalLength.value = 50f;
                 
 
             }
             else
             {
-
-
+                
+                if (blurVolume.profile != null)
+                {
+                    depthOfField = blurVolume.profile.Add<DepthOfField>();
+                    if (depthOfField != null)
+                    {
+                        depthOfField.active = false;
+                        depthOfField.mode.overrideState = true;
+                        depthOfField.mode.value = DepthOfFieldMode.Bokeh;
+                        depthOfField.focusDistance.overrideState = true;
+                        depthOfField.focusDistance.value = blurIntensity;
+                        depthOfField.aperture.overrideState = true;
+                        depthOfField.aperture.value = blurIntensity / 10f;
+                        depthOfField.focalLength.overrideState = true;
+                        depthOfField.focalLength.value = 50f;
+                    }
+                }
             }
         }
         else
@@ -815,11 +837,17 @@ public class PauseController : MonoBehaviour
         if (depthOfField != null)
         {
             depthOfField.active = true;
-
         }
         else
         {
-
+            
+            if (blurVolume != null && blurVolume.profile != null)
+            {
+                if (blurVolume.profile.TryGet(out depthOfField))
+                {
+                    depthOfField.active = true;
+                }
+            }
         }
         
 
@@ -832,11 +860,17 @@ public class PauseController : MonoBehaviour
         if (depthOfField != null)
         {
             depthOfField.active = false;
-
         }
         else
         {
-
+            
+            if (blurVolume != null && blurVolume.profile != null)
+            {
+                if (blurVolume.profile.TryGet(out depthOfField))
+                {
+                    depthOfField.active = false;
+                }
+            }
         }
         
 

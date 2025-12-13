@@ -55,8 +55,17 @@ namespace VLB
         {
             if (beam)
             {
-                m_BaseIntensityBeamInside = beam.intensityInside;
-                m_BaseIntensityBeamOutside = beam.intensityOutside;
+                // Si no está en modo avanzado, usar el mismo valor para ambos
+                if (!beam.intensityModeAdvanced)
+                {
+                    m_BaseIntensityBeamInside = beam.intensityOutside;
+                    m_BaseIntensityBeamOutside = beam.intensityOutside;
+                }
+                else
+                {
+                    m_BaseIntensityBeamInside = beam.intensityInside;
+                    m_BaseIntensityBeamOutside = beam.intensityOutside;
+                }
             }
         }
 
@@ -72,8 +81,19 @@ namespace VLB
         {
             if (beam)
             {
-                beam.intensityInside = Mathf.Max(0.0f, m_BaseIntensityBeamInside + additive);
-                beam.intensityOutside = Mathf.Max(0.0f, m_BaseIntensityBeamOutside + additive);
+                float newIntensity = Mathf.Max(0.0f, m_BaseIntensityBeamOutside + additive);
+                
+                // Si no está en modo avanzado, mantener ambos valores iguales
+                if (!beam.intensityModeAdvanced)
+                {
+                    beam.intensityInside = newIntensity;
+                    beam.intensityOutside = newIntensity;
+                }
+                else
+                {
+                    beam.intensityInside = Mathf.Max(0.0f, m_BaseIntensityBeamInside + additive);
+                    beam.intensityOutside = newIntensity;
+                }
             }
         }
 

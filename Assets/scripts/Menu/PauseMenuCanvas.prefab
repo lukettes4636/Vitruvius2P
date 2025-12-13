@@ -847,7 +847,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 9074061017072524226}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 73b4d6c9466d47549a5d06cf26c24f4b, type: 3}
+  m_Script: {fileID: 11500000, guid: 1ac6133e5087a9e46a52546e19217f58, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   pausePanelCanvasGroup: {fileID: 2837113633095878519}

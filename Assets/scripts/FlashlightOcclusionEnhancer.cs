@@ -154,7 +154,11 @@ public class FlashlightOcclusionEnhancer : MonoBehaviour
         SetupDynamicOcclusion();
         CacheOriginalValues();
 
-        string modelName = transform.root.name.Contains("Player1") ? "flashlightfbx - Copy" : "flashlightfbx";
+    if (volumetricBeam != null) {
+        volumetricBeam.intensityModeAdvanced = true;
+    }
+
+    string modelName = transform.root.name.Contains("Player1") ? "flashlightfbx - Copy" : "flashlightfbx";
         flashlightModel = transform.root.Find(modelName);
         if (flashlightModel == null) {
 
@@ -529,8 +533,9 @@ public class FlashlightOcclusionEnhancer : MonoBehaviour
             {
                 
                 float beamIntensityMultiplier = Mathf.Lerp(1f, 0.1f, (proximityOcclusionFactor - 0.7f) / 0.3f);
-                volumetricBeam.intensityInside *= beamIntensityMultiplier;
-                volumetricBeam.intensityOutside = volumetricBeam.intensityInside;
+                float newIntensity = volumetricBeam.intensityOutside * beamIntensityMultiplier;
+                volumetricBeam.intensityInside = newIntensity;
+                volumetricBeam.intensityOutside = newIntensity;
                 
                 
                 if (proximityOcclusionFactor > 0.85f)

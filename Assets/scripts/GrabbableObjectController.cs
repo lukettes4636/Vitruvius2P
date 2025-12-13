@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
 using System.Linq;
@@ -180,9 +180,10 @@ namespace Gameplay
 
             if (currentHolderCollider != null && col != null) Physics.IgnoreCollision(col, currentHolderCollider, true);
 
-            rb.isKinematic = true;
+            
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
+            rb.isKinematic = true;
             transform.SetParent(holder);
 
             
