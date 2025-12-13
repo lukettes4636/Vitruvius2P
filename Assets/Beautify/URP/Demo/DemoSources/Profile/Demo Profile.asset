@@ -264,7 +264,7 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: {r: 1, g: 1, b: 1, a: 1}
   anamorphicFlaresIntensity:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 1
   anamorphicFlaresThreshold:
     m_OverrideState: 0
@@ -425,7 +425,7 @@ MonoBehaviour:
     m_Value: 0.01
   lensDirtIntensity:
     m_OverrideState: 1
-    m_Value: 2
+    m_Value: 0.1
   lensDirtThreshold:
     m_OverrideState: 0
     m_Value: 0.5
@@ -684,6 +684,9 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 0
   outlineUsesOptimizedShader:
+    m_OverrideState: 0
+    m_Value: 0
+  outlineLayerCutOff:
     m_OverrideState: 0
     m_Value: 0
   nightVision:
