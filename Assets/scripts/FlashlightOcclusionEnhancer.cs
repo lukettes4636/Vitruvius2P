@@ -136,6 +136,10 @@ public class FlashlightOcclusionEnhancer : MonoBehaviour
     private bool isProximityOccluded = false;
     private float proximityOcclusionFactor = 0f;
 
+    private Transform flashlightModel;
+    private Renderer[] modelRenderers;
+    private bool isModelDisabled = false;
+
     void OnEnable()
     {
         InitializeComponents();
@@ -149,6 +153,14 @@ public class FlashlightOcclusionEnhancer : MonoBehaviour
         InitializeComponents();
         SetupDynamicOcclusion();
         CacheOriginalValues();
+
+        string modelName = transform.root.name.Contains("Player1") ? "flashlightfbx - Copy" : "flashlightfbx";
+        flashlightModel = transform.root.Find(modelName);
+        if (flashlightModel == null) {
+
+        } else {
+            modelRenderers = flashlightModel.GetComponentsInChildren<Renderer>();
+        }
     }
 
     void Update()
@@ -546,6 +558,13 @@ public class FlashlightOcclusionEnhancer : MonoBehaviour
                         Time.deltaTime * 3f
                     );
                     volumetricBeam.intensityOutside = volumetricBeam.intensityInside;
+                }
+
+                if (isModelDisabled && modelRenderers != null) {
+                    foreach (Renderer r in modelRenderers) {
+                        r.enabled = true;
+                    }
+                    isModelDisabled = false;
                 }
             }
         }
