@@ -1,12 +1,8 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
-
-
-
-
 
 [RequireComponent(typeof(NPCDialogueDataManager))]
 public class NPCEnhancedDialogueSystem : MonoBehaviour
@@ -90,6 +86,9 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
     private Coroutine canvasArrangementCoroutine;
     private float lastNavigateTime = 0f;
 
+    
+    private NPCBehaviorManager npcBehavior;
+
     #endregion
 
     #region Unity Lifecycle
@@ -98,6 +97,9 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
     {
         InitializeComponents();
         CachePlayerReferences();
+
+        
+        npcBehavior = GetComponent<NPCBehaviorManager>();
     }
 
     private void Start()
@@ -234,7 +236,15 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
 
     private void UpdateInteractionPrompt()
     {
+        
         bool shouldShowPrompt = playersInRange.Count > 0 && !DialogueManager.IsDialogueActive();
+
+        
+        if (npcBehavior != null && npcBehavior.IsFollowing)
+        {
+            shouldShowPrompt = false;
+        }
+
         ShowInteractionPrompt(shouldShowPrompt);
 
         if (shouldShowPrompt && interactPromptCanvas != null)
@@ -251,6 +261,10 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
 
     private void TryStartDialogue(string playerTag)
     {
+        
+        if (npcBehavior != null && npcBehavior.IsFollowing)
+            return;
+
         if (isDialogueActive) return;
 
         if (!TryGetPlayerContext(playerTag, out Transform playerTransform, out PlayerInput playerInput))
@@ -265,7 +279,6 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
             return;
         }
 
-        
         if (dialogueDataManager != null && !dialogueDataManager.HasDialogueAvailable(playerTag))
         {
             return;
@@ -296,7 +309,6 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
             StartCanvasArrangement();
         }
 
-        
         LoadDialogueForPlayer(playerTag);
         currentNodeIndex = 0;
 
@@ -316,9 +328,8 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
             dialogueNodes = new List<DialogueNode>();
         }
 
-        if (dialogueNodes == null || dialogueNodes.Count == 0)
+        if (dialogueNodes == null)
         {
-
             dialogueNodes = new List<DialogueNode>();
         }
     }
@@ -366,7 +377,6 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
         currentPlayerTag = "";
         currentPlayerPopup = null;
 
-        
         if (dialogueDataManager != null && !string.IsNullOrEmpty(playerTagToEnd))
         {
             dialogueDataManager.CompleteCurrentDialogue(playerTagToEnd);
@@ -548,11 +558,27 @@ public class NPCEnhancedDialogueSystem : MonoBehaviour
             return;
         }
 
-        int nextNodeIndex = node.options[optionIndex].nextNodeIndex;
-        currentNodeIndex = nextNodeIndex;
-        isAwaitingChoice = false;
+        
+        string flagName = node.options[optionIndex].flagToTrigger;
+        if (!string.IsNullOrEmpty(flagName) && dialogueDataManager != null)
+        {
+            dialogueDataManager.SetFlag(currentPlayerTag, flagName);
 
-        DisplayCurrentNode();
+        }
+
+        int nextNodeIndex = node.options[optionIndex].nextNodeIndex;
+
+        
+        if (nextNodeIndex < 0 || nextNodeIndex >= dialogueNodes.Count)
+        {
+            EndDialogue();
+        }
+        else
+        {
+            currentNodeIndex = nextNodeIndex;
+            isAwaitingChoice = false;
+            DisplayCurrentNode();
+        }
     }
 
     #endregion

@@ -837,4 +837,15 @@ public class MovJugador2 : MonoBehaviour
     {
         PlayFootstepSound(2);
     }
+
+    
+
+    
+    public bool IsCrouchingState => isCrouching;
+
+    
+    public bool IsRunningState => isRunningInput && isMoving && canRun && !isCrouching;
+
+    
+    public Transform GetTransform() => this.transform;
 }

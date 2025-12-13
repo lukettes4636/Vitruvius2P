@@ -781,4 +781,14 @@ public class MovJugador1 : MonoBehaviour
             }
         }
     }
+   
+
+    
+    public bool IsCrouchingState => isCrouching;
+
+    
+    public bool IsRunningState => isRunningInput && isMoving && canRun && !isCrouching;
+
+    
+    public Transform GetTransform() => this.transform;
 }

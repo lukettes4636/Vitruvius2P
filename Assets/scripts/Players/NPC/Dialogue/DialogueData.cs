@@ -1,26 +1,23 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
-
-
-
 
 [System.Serializable]
 public class DialogueCondition
 {
     public enum ConditionType
     {
-        None,                    
-        HasCompletedQuest,       
-        HasItem,                 
-        PlayerSpecific,          
-        MinimumInteractions,     
-        CustomFlag              
+        None,
+        HasCompletedQuest,
+        HasItem,
+        PlayerSpecific,
+        MinimumInteractions,
+        CustomFlag
     }
 
     public ConditionType type = ConditionType.None;
-    public string conditionValue = "";  
-    public int minimumCount = 1;        
-    public string specificPlayerTag = ""; 
+    public string conditionValue = "";
+    public int minimumCount = 1;
+    public string specificPlayerTag = "";
 
     public bool IsMet(string playerTag, NPCDialogueDataManager dataManager)
     {
@@ -38,10 +35,8 @@ public class DialogueCondition
             case ConditionType.CustomFlag:
                 return dataManager.HasFlag(playerTag, conditionValue);
 
-            
             case ConditionType.HasCompletedQuest:
             case ConditionType.HasItem:
-
                 return true;
 
             default:
@@ -51,56 +46,57 @@ public class DialogueCondition
 }
 
 
+[System.Serializable]
+public class DialogueOption
+{
+    public string optionText;
+    public int nextNodeIndex;
 
+    [Tooltip("Escribe aqu el nombre de la Flag que se activar al elegir esta opcin (ej: NPC_Follows_P1)")]
+    public string flagToTrigger = "";
+}
+
+
+[System.Serializable]
+public class DialogueNode
+{
+    public bool isNPC = true;
+    [TextArea(3, 10)] public string line;
+    public List<DialogueOption> options; 
+}
 
 [System.Serializable]
 public class CharacterDialogueSet
 {
     [Header("Identificacin")]
-    public string characterTag = "Player1"; 
+    public string characterTag = "Player1";
     public string setName = "Primera Conversacin";
 
     [Header("Condiciones")]
-    [Tooltip("Condiciones que deben cumplirse para que este dilogo est disponible")]
     public List<DialogueCondition> conditions = new List<DialogueCondition>();
 
     [Header("Dilogo")]
     public List<DialogueNode> dialogueNodes = new List<DialogueNode>();
 
     [Header("Configuracin")]
-    [Tooltip("Si es true, este dilogo solo se mostrar una vez")]
     public bool oneTimeOnly = false;
-
-    [Tooltip("Si es true, despus de completar este dilogo se marcar como visto")]
     public bool markAsCompleted = true;
 
-    
     [HideInInspector]
     public bool hasBeenShown = false;
 
     public bool CanShow(string playerTag, NPCDialogueDataManager dataManager)
     {
-        
-        if (playerTag != characterTag)
-            return false;
+        if (playerTag != characterTag) return false;
+        if (oneTimeOnly && hasBeenShown) return false;
 
-        
-        if (oneTimeOnly && hasBeenShown)
-            return false;
-
-        
         foreach (var condition in conditions)
         {
-            if (!condition.IsMet(playerTag, dataManager))
-                return false;
+            if (!condition.IsMet(playerTag, dataManager)) return false;
         }
-
         return true;
     }
 }
-
-
-
 
 [CreateAssetMenu(fileName = "NewNPCDialogue", menuName = "Dialogue System/NPC Dialogue Data")]
 public class NPCDialogueData : ScriptableObject
@@ -110,24 +106,15 @@ public class NPCDialogueData : ScriptableObject
     public string npcDescription = "";
 
     [Header("Dilogos por Personaje")]
-    [Tooltip("Dilogos especficos para Player1")]
     public List<CharacterDialogueSet> player1Dialogues = new List<CharacterDialogueSet>();
-
-    [Tooltip("Dilogos especficos para Player2")]
     public List<CharacterDialogueSet> player2Dialogues = new List<CharacterDialogueSet>();
 
     [Header("Dilogo de Seguimiento (Follow-up)")]
-    [Tooltip("Dilogo que se muestra despus de completar todas las conversaciones")]
     public List<DialogueNode> followUpDialogue = new List<DialogueNode>();
 
-    
-    
-    
     public CharacterDialogueSet GetDialogueForPlayer(string playerTag, NPCDialogueDataManager dataManager)
     {
         List<CharacterDialogueSet> relevantDialogues = playerTag == "Player1" ? player1Dialogues : player2Dialogues;
-
-        
         foreach (var dialogueSet in relevantDialogues)
         {
             if (dialogueSet.CanShow(playerTag, dataManager))
@@ -135,13 +122,9 @@ public class NPCDialogueData : ScriptableObject
                 return dialogueSet;
             }
         }
-
         return null;
     }
 
-    
-    
-    
     public void CompleteDialogue(string playerTag, CharacterDialogueSet dialogueSet)
     {
         if (dialogueSet != null && dialogueSet.markAsCompleted)
@@ -150,31 +133,9 @@ public class NPCDialogueData : ScriptableObject
         }
     }
 
-    
-    
-    
-    public bool HasCompletedAllDialogues(string playerTag)
-    {
-        List<CharacterDialogueSet> relevantDialogues = playerTag == "Player1" ? player1Dialogues : player2Dialogues;
-
-        foreach (var dialogueSet in relevantDialogues)
-        {
-            if (!dialogueSet.hasBeenShown)
-                return false;
-        }
-
-        return true;
-    }
-
-    
-    
-    
     public void ResetAllDialogues()
     {
-        foreach (var dialogue in player1Dialogues)
-            dialogue.hasBeenShown = false;
-
-        foreach (var dialogue in player2Dialogues)
-            dialogue.hasBeenShown = false;
+        foreach (var dialogue in player1Dialogues) dialogue.hasBeenShown = false;
+        foreach (var dialogue in player2Dialogues) dialogue.hasBeenShown = false;
     }
 }

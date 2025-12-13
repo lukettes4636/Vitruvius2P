@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
@@ -24,8 +24,7 @@ public class NPCDialogueDataEditor : Editor
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Sistema de Dialogos Individual por Personaje", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "Este ScriptableObject permite configurar dialogos diferentes para cada jugador. " +
-            "Cada jugador puede tener multiples conversaciones que se desbloquean segun condiciones.",
+            "Configura los dialogos para cada jugador. Usa las condiciones para desbloquear conversaciones y las 'Flags' en las opciones para activar eventos.",
             MessageType.Info
         );
 
@@ -65,12 +64,12 @@ public class NPCDialogueDataEditor : Editor
         EditorGUILayout.Space(5);
 
         
-        showFollowUp = EditorGUILayout.BeginFoldoutHeaderGroup(showFollowUp, "Dialogo de Seguimiento (Follow-up)");
+        showFollowUp = EditorGUILayout.BeginFoldoutHeaderGroup(showFollowUp, "Dialogo de Seguimiento (Default)");
         if (showFollowUp)
         {
             EditorGUI.indentLevel++;
             EditorGUILayout.HelpBox(
-                "Este dialogo se muestra cuando un jugador completa todos sus dialogos especificos.",
+                "Este dialogo se muestra cuando un jugador ya completo todas sus conversaciones especificas.",
                 MessageType.Info
             );
             DrawDialogueNodeList(dialogueData.followUpDialogue);
@@ -82,11 +81,11 @@ public class NPCDialogueDataEditor : Editor
 
         
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Resetear Todos los Dialogos"))
+        if (GUILayout.Button("Resetear Estado de Todos los Dialogos"))
         {
             if (EditorUtility.DisplayDialog(
                 "Resetear Dialogos",
-                "Estas seguro de que quieres resetear el estado de todos los dialogos?",
+                "Estas seguro de que quieres resetear el estado (visto/no visto) de todos los dialogos?",
                 "Si", "Cancelar"))
             {
                 dialogueData.ResetAllDialogues();
@@ -103,11 +102,14 @@ public class NPCDialogueDataEditor : Editor
         }
     }
 
+    
+    
+    
+
     private void DrawCharacterDialogueList(List<CharacterDialogueSet> dialogues, string playerTag)
     {
         EditorGUILayout.BeginVertical("box");
 
-        
         if (GUILayout.Button($"+ Anadir Nuevo Dialogo para {playerTag}"))
         {
             CharacterDialogueSet newSet = new CharacterDialogueSet
@@ -122,7 +124,6 @@ public class NPCDialogueDataEditor : Editor
 
         EditorGUILayout.Space(5);
 
-        
         for (int i = 0; i < dialogues.Count; i++)
         {
             DrawCharacterDialogueSet(dialogues, i);
@@ -155,25 +156,23 @@ public class NPCDialogueDataEditor : Editor
         }
         EditorGUILayout.EndHorizontal();
 
-        
         EditorGUI.indentLevel++;
 
+        
         dialogueSet.oneTimeOnly = EditorGUILayout.Toggle("Solo una vez", dialogueSet.oneTimeOnly);
-        dialogueSet.markAsCompleted = EditorGUILayout.Toggle("Marcar como completado", dialogueSet.markAsCompleted);
+        dialogueSet.markAsCompleted = EditorGUILayout.Toggle("Marcar completado", dialogueSet.markAsCompleted);
 
         if (dialogueSet.hasBeenShown)
         {
-            EditorGUILayout.HelpBox("Este dialogo ya ha sido mostrado", MessageType.Info);
+            EditorGUILayout.HelpBox("Este dialogo ya ha sido mostrado (Estado: Visto)", MessageType.Info);
         }
 
-        
         EditorGUILayout.Space(5);
-        EditorGUILayout.LabelField("Condiciones", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Condiciones de Desbloqueo", EditorStyles.boldLabel);
         DrawConditionsList(dialogueSet.conditions);
 
-        
         EditorGUILayout.Space(5);
-        EditorGUILayout.LabelField("Nodos de Dialogo", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Contenido del Dialogo", EditorStyles.boldLabel);
         DrawDialogueNodeList(dialogueSet.dialogueNodes);
 
         EditorGUI.indentLevel--;
@@ -181,6 +180,10 @@ public class NPCDialogueDataEditor : Editor
         EditorGUILayout.EndVertical();
         EditorGUILayout.Space(5);
     }
+
+    
+    
+    
 
     private void DrawConditionsList(List<DialogueCondition> conditions)
     {
@@ -218,28 +221,32 @@ public class NPCDialogueDataEditor : Editor
         switch (condition.type)
         {
             case DialogueCondition.ConditionType.PlayerSpecific:
-                condition.specificPlayerTag = EditorGUILayout.TextField("Player Tag", condition.specificPlayerTag);
+                condition.specificPlayerTag = EditorGUILayout.TextField("Tag Jugador", condition.specificPlayerTag);
                 break;
 
             case DialogueCondition.ConditionType.MinimumInteractions:
-                condition.minimumCount = EditorGUILayout.IntField("Minimo", condition.minimumCount);
+                condition.minimumCount = EditorGUILayout.IntField("Minimo Interacciones", condition.minimumCount);
                 break;
 
             case DialogueCondition.ConditionType.HasCompletedQuest:
             case DialogueCondition.ConditionType.HasItem:
             case DialogueCondition.ConditionType.CustomFlag:
-                condition.conditionValue = EditorGUILayout.TextField("Valor", condition.conditionValue);
+                condition.conditionValue = EditorGUILayout.TextField("Valor / Flag", condition.conditionValue);
                 break;
         }
 
         EditorGUILayout.EndVertical();
     }
 
+    
+    
+    
+
     private void DrawDialogueNodeList(List<DialogueNode> nodes)
     {
         EditorGUILayout.BeginVertical("box");
 
-        if (GUILayout.Button("+ Anadir Nodo de Dialogo"))
+        if (GUILayout.Button("+ Anadir Nodo de Texto"))
         {
             nodes.Add(new DialogueNode());
             EditorUtility.SetDirty(dialogueData);
@@ -290,7 +297,7 @@ public class NPCDialogueDataEditor : Editor
         EditorGUILayout.EndHorizontal();
 
         
-        node.isNPC = EditorGUILayout.Toggle("Es NPC", node.isNPC);
+        node.isNPC = EditorGUILayout.Toggle("Habla el NPC", node.isNPC);
         EditorGUILayout.LabelField("Texto:");
         node.line = EditorGUILayout.TextArea(node.line, GUILayout.MinHeight(40));
 
@@ -323,11 +330,19 @@ public class NPCDialogueDataEditor : Editor
         EditorGUILayout.BeginHorizontal("box");
         EditorGUILayout.BeginVertical();
 
+        
         option.optionText = EditorGUILayout.TextField($"Opcion {index + 1}", option.optionText);
-        option.nextNodeIndex = EditorGUILayout.IntSlider("Siguiente Nodo", option.nextNodeIndex, 0, maxNodeIndex - 1);
+
+        
+        option.flagToTrigger = EditorGUILayout.TextField("Flag Evento (Opcional)", option.flagToTrigger);
+
+        
+        
+        option.nextNodeIndex = EditorGUILayout.IntSlider("Ir a Nodo (-1=Fin)", option.nextNodeIndex, -1, maxNodeIndex - 1);
 
         EditorGUILayout.EndVertical();
 
+        
         if (GUILayout.Button("X", GUILayout.Width(25)))
         {
             options.RemoveAt(index);
