@@ -5,6 +5,14 @@ public class EnemySenses : MonoBehaviour
     [Header("Deteccion de Jugadores")]
     public Transform[] playerTargets;
 
+    [Header("Deteccion de NPCs")]
+    [Tooltip("NPCs que el enemigo puede detectar y atacar")]
+    public Transform[] npcTargets;
+
+    [Header("Deteccion de Objetos")]
+    [Tooltip("Sistema de deteccion de objetos que emiten ruido")]
+    public ObjectNoiseDetection objectNoiseDetection;
+
     [Header("Configuracion de Audio")]
     [Range(0.5f, 3.0f)] public float audioSensitivity = 1.0f;
     public float maxHearingDistance = 20f;
@@ -28,21 +36,31 @@ public class EnemySenses : MonoBehaviour
     public Vector3 TargetPositionOfInterest { get; private set; }
     public bool HasTargetOfInterest { get; private set; }
     public Transform CurrentPlayer { get; private set; }
+    public Transform CurrentNPCTarget { get; private set; }
+    public Transform CurrentNoisyObject { get; private set; }
     public GameObject CurrentWallTarget { get; private set; }
     public float CurrentAlertLevel { get; private set; }
+    
+    
+    
+    
+    public Transform CurrentTarget => CurrentPlayer ?? CurrentNPCTarget ?? CurrentNoisyObject;
 
     public bool showDebugGizmos = true;
 
     public void Tick()
     {
         ProcessAudioDetection();
+        ProcessObjectNoiseDetection();
     }
 
     private void ProcessAudioDetection()
     {
-        Transform loudestPlayer = null;
+        Transform loudestTarget = null;
         float maxAudioStrength = 0f;
+        bool isTargetNPC = false;
 
+        
         foreach (Transform player in playerTargets)
         {
             if (player == null) continue;
@@ -53,21 +71,52 @@ public class EnemySenses : MonoBehaviour
             var noiseEmitter = player.GetComponent<PlayerNoiseEmitter>();
 
             if (noiseEmitter == null || noiseEmitter.currentNoiseRadius < 0.1f) continue;
-            float strength = CalculateAudioStrength(player, noiseEmitter, dist);
+            float strength = CalculateAudioStrength(player, noiseEmitter.currentNoiseRadius, dist);
 
             if (strength > maxAudioStrength)
             {
                 maxAudioStrength = strength;
-                loudestPlayer = player;
+                loudestTarget = player;
+                isTargetNPC = false;
+            }
+        }
+
+        
+        foreach (Transform npc in npcTargets)
+        {
+            if (npc == null) continue;
+            var npcHealth = npc.GetComponent<NPCHealth>();
+            if (npcHealth != null && npcHealth.IsDead) continue;
+
+            float dist = Vector3.Distance(transform.position, npc.position);
+            var npcNoiseEmitter = npc.GetComponent<NPCNoiseEmitter>();
+
+            if (npcNoiseEmitter == null || npcNoiseEmitter.currentNoiseRadius < 0.1f) continue;
+            float strength = CalculateAudioStrength(npc, npcNoiseEmitter.currentNoiseRadius, dist);
+
+            if (strength > maxAudioStrength)
+            {
+                maxAudioStrength = strength;
+                loudestTarget = npc;
+                isTargetNPC = true;
             }
         }
 
         CurrentAlertLevel = maxAudioStrength;
 
-        if (loudestPlayer != null && maxAudioStrength > detectionThreshold)
+        if (loudestTarget != null && maxAudioStrength > detectionThreshold)
         {
-            CurrentPlayer = loudestPlayer;
-            TargetPositionOfInterest = CurrentPlayer.position;
+            if (isTargetNPC)
+            {
+                CurrentNPCTarget = loudestTarget;
+                CurrentPlayer = null;
+            }
+            else
+            {
+                CurrentPlayer = loudestTarget;
+                CurrentNPCTarget = null;
+            }
+            TargetPositionOfInterest = loudestTarget.position;
             HasTargetOfInterest = true;
             timeSinceLastHeard = 0f;
         }
@@ -78,15 +127,16 @@ public class EnemySenses : MonoBehaviour
             {
                 HasTargetOfInterest = false;
                 CurrentPlayer = null;
+                CurrentNPCTarget = null;
             }
         }
     }
 
-    private float CalculateAudioStrength(Transform player, PlayerNoiseEmitter noiseEmitter, float distance)
+    private float CalculateAudioStrength(Transform target, float noiseRadius, float distance)
     {
         if (distance > maxHearingDistance) return 0f;
-        float rawRadius = noiseEmitter.currentNoiseRadius * audioSensitivity;
-        int walls = CountSoundBlockers(player);
+        float rawRadius = noiseRadius * audioSensitivity;
+        int walls = CountSoundBlockers(target);
         float attenuatedRadius = rawRadius * Mathf.Pow(soundAttenuationPerWall, walls);
         float effectiveRadius = Mathf.Max(attenuatedRadius, minDetectionRadius);
         if (distance <= effectiveRadius) return Mathf.Clamp01(1f - (distance / effectiveRadius));
@@ -150,10 +200,41 @@ public class EnemySenses : MonoBehaviour
         return false;
     }
 
+    private void ProcessObjectNoiseDetection()
+    {
+        
+        if (HasTargetOfInterest && (CurrentPlayer != null || CurrentNPCTarget != null))
+        {
+            CurrentNoisyObject = null;
+            return;
+        }
+
+        
+        if (objectNoiseDetection != null && objectNoiseDetection.HasNoisyObjectNearby())
+        {
+            if (objectNoiseDetection.GetLoudestObject(out Transform noisyObject, out Vector3 objectPosition))
+            {
+                CurrentNoisyObject = noisyObject;
+                TargetPositionOfInterest = objectPosition;
+                HasTargetOfInterest = true;
+                timeSinceLastHeard = 0f;
+                return;
+            }
+        }
+
+        
+        if (CurrentPlayer == null && CurrentNPCTarget == null)
+        {
+            CurrentNoisyObject = null;
+        }
+    }
+
     public void ForgetTarget()
     {
         HasTargetOfInterest = false;
         CurrentPlayer = null;
+        CurrentNPCTarget = null;
+        CurrentNoisyObject = null;
     }
 
     private void OnDrawGizmosSelected()

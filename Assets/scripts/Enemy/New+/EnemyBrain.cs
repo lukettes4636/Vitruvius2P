@@ -107,10 +107,26 @@ public class EnemyBrain : MonoBehaviour
 
     void HandleChasing()
     {
-        if (senses.CurrentPlayer != null)
+        
+        Transform currentTarget = senses.CurrentTarget;
+        if (currentTarget != null)
         {
-            var health = senses.CurrentPlayer.GetComponent<PlayerHealth>();
-            if (health != null && health.IsDead)
+            var playerHealth = currentTarget.GetComponent<PlayerHealth>();
+            var npcHealth = currentTarget.GetComponent<NPCHealth>();
+            
+            
+            if (senses.CurrentNoisyObject != null && currentTarget == senses.CurrentNoisyObject)
+            {
+                
+                motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, 1f);
+                visuals.UpdateAnimationState(false);
+                return;
+            }
+            
+            bool isDead = (playerHealth != null && playerHealth.IsDead) || 
+                         (npcHealth != null && npcHealth.IsDead);
+            
+            if (isDead)
             {
                 senses.ForgetTarget();
                 StartCoroutine(ReturnToPatrolRoutine());
@@ -140,7 +156,8 @@ public class EnemyBrain : MonoBehaviour
         {
             if (Vector3.Distance(transform.position, senses.TargetPositionOfInterest) <= attackRange && !senses.CheckForWallInFront())
             {
-                StartCoroutine(AttackPlayerRoutine());
+                
+                StartCoroutine(AttackTargetRoutine());
             }
         }
         else
@@ -218,7 +235,7 @@ public class EnemyBrain : MonoBehaviour
         yield return new WaitForSeconds(attackCooldown);
     }
 
-    IEnumerator AttackPlayerRoutine()
+    IEnumerator AttackTargetRoutine()
     {
         currentState = State.Attacking;
         motor.Stop();
@@ -294,6 +311,22 @@ public class EnemyBrain : MonoBehaviour
     void WakeUp() { hasAwakened = true; visuals.SetPassiveState(0); StartCoroutine(WakeUpAndRoarRoutine()); }
     void GoToNextPatrolPoint() { if (patrolPoints.Length == 0) return; patrolIndex = (patrolIndex + 1) % patrolPoints.Length; motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.1f); }
     void TryDestroyWall(GameObject w) { if (w) { var s = w.GetComponent<Wall_Destruction>(); if (s) { s.Explode(w.transform.position, transform.forward); visuals.PlayWallBreakSound(); DialogueManager.ShowEnemyWallBreakDialogue(); } } }
-    void HandleDialogueFeedback() { if (!senses.HasTargetOfInterest) return; if (!hasShownFirstDetection) { hasShownFirstDetection = true; lastReDetectionTime = Time.time; } else if (Time.time - lastReDetectionTime > 2.0f && currentState == State.Patrol) { DialogueManager.ShowEnemyDetectedAgainDialogue(senses.CurrentPlayer.gameObject); lastReDetectionTime = Time.time; } }
+    void HandleDialogueFeedback() 
+    { 
+        if (!senses.HasTargetOfInterest) return; 
+        Transform currentTarget = senses.CurrentTarget;
+        if (currentTarget == null) return;
+        
+        if (!hasShownFirstDetection) 
+        { 
+            hasShownFirstDetection = true; 
+            lastReDetectionTime = Time.time; 
+        } 
+        else if (Time.time - lastReDetectionTime > 2.0f && currentState == State.Patrol) 
+        { 
+            DialogueManager.ShowEnemyDetectedAgainDialogue(currentTarget.gameObject); 
+            lastReDetectionTime = Time.time; 
+        } 
+    }
     public void OnEnemyDeath() { currentState = State.Dead; motor.Stop(); StopAllCoroutines(); if (cameraController) cameraController.StopTrackingEnemy(); }
 }

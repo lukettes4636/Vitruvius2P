@@ -40,6 +40,8 @@ public class NPCBehaviorManager : MonoBehaviour
 
     
     public bool IsFollowing => isFollowing;
+    
+    public Transform CurrentLeaderTransform => currentLeaderTransform;
 
     private void Awake()
     {

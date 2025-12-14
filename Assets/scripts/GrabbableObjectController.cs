@@ -286,7 +286,17 @@ namespace Gameplay
         protected virtual void OnCollisionEnter(Collision collision)
         {
             if (isHeld) return;
-            if (collision.relativeVelocity.magnitude >= MinCollisionForce) PlayCollisionSound(collision.relativeVelocity.magnitude);
+            if (collision.relativeVelocity.magnitude >= MinCollisionForce)
+            {
+                PlayCollisionSound(collision.relativeVelocity.magnitude);
+                
+                
+                ObjectNoiseEmitter noiseEmitter = GetComponent<ObjectNoiseEmitter>();
+                if (noiseEmitter != null)
+                {
+                    noiseEmitter.TriggerCollisionNoise(collision.relativeVelocity.magnitude);
+                }
+            }
         }
 
         protected void PlayCollisionSound(float impactMagnitude)

@@ -142,6 +142,9 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 1f4063cce302ce042b953c41cc21b812, type: 3}
       insertIndex: -1
+      addedObject: {fileID: 1057939787452349364}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 1f4063cce302ce042b953c41cc21b812, type: 3}
+      insertIndex: -1
       addedObject: {fileID: 4652137248366541927}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 1f4063cce302ce042b953c41cc21b812, type: 3}
       insertIndex: -1
@@ -158,6 +161,28 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 1f4063cce302ce042b953c41cc21b812, type: 3}
   m_PrefabInstance: {fileID: 7911181064080786919}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1057939787452349364
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6992753845761226934}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3719923335bade14f9a6bc91ee0645bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  idleNoiseRadius: 0
+  movingNoiseRadius: 4
+  fastMovingNoiseRadius: 8
+  collisionNoiseRadius: 10
+  collisionNoiseDuration: 2
+  movingSpeedThreshold: 0.5
+  fastMovingSpeedThreshold: 3
+  showNoiseGizmo: 1
+  noiseColor: {r: 1, g: 0.4, b: 0.8, a: 0.25}
+  currentNoiseRadius: 0
 --- !u!114 &4652137248366541927
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -170,8 +195,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3375d2ade9cfffc4bae606d58fe927ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ActionName: Interact
-  ThrowActionName: Throw
+  ActionName: Action Button
+  ThrowActionName: Throw Action Button
   GrabRadius: 2
   HoldOffset: {x: 0, y: 1.19, z: 0.3}
   HoldRotation: {x: 0, y: 0, z: 0}

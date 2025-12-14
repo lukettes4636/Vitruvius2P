@@ -14,6 +14,10 @@ public class EnemyMonsterAI : MonoBehaviour
 
     [Header("Deteccion de jugadores")]
     public Transform[] playerTargets;
+
+    [Header("Deteccion de NPCs")]
+    [Tooltip("NPCs que el enemigo puede detectar y atacar")]
+    public Transform[] npcTargets;
     private Transform currentPlayer;
 
     [Header("Parametros de movimiento")]
@@ -370,6 +374,7 @@ public class EnemyMonsterAI : MonoBehaviour
         Transform nearest = null;
         float minDist = Mathf.Infinity;
 
+        
         foreach (Transform player in playerTargets)
         {
             if (player == null) continue;
@@ -385,6 +390,13 @@ public class EnemyMonsterAI : MonoBehaviour
             bool canSeePlayer = dist <= lookRadius && IsPlayerInViewCone(player) && HasLineOfSight(player);
             bool canHearPlayer = dist <= audioDetectionRadius;
 
+            
+            PlayerNoiseEmitter noiseEmitter = player.GetComponent<PlayerNoiseEmitter>();
+            if (noiseEmitter != null && canHearPlayer && dist <= noiseEmitter.currentNoiseRadius)
+            {
+                canHearPlayer = true;
+            }
+
             if (currentState == State.Sleeping)
             {
                 if (!canHearPlayer) continue;
@@ -398,6 +410,45 @@ public class EnemyMonsterAI : MonoBehaviour
             {
                 minDist = dist;
                 nearest = player;
+            }
+        }
+
+        
+        foreach (Transform npc in npcTargets)
+        {
+            if (npc == null) continue;
+
+            NPCHealth npcHealth = npc.GetComponent<NPCHealth>();
+            if (npcHealth != null && npcHealth.IsDead)
+            {
+                continue;
+            }
+
+            float dist = Vector3.Distance(transform.position, npc.position);
+
+            bool canSeeNPC = dist <= lookRadius && IsPlayerInViewCone(npc) && HasLineOfSight(npc);
+            bool canHearNPC = dist <= audioDetectionRadius;
+
+            
+            NPCNoiseEmitter npcNoiseEmitter = npc.GetComponent<NPCNoiseEmitter>();
+            if (npcNoiseEmitter != null && canHearNPC && dist <= npcNoiseEmitter.currentNoiseRadius)
+            {
+                canHearNPC = true;
+            }
+
+            if (currentState == State.Sleeping)
+            {
+                if (!canHearNPC) continue;
+            }
+            else
+            {
+                if (!canSeeNPC && !canHearNPC) continue;
+            }
+
+            if (dist < minDist)
+            {
+                minDist = dist;
+                nearest = npc;
             }
         }
 

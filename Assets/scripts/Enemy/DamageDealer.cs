@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class DamageDealer : MonoBehaviour
 {
@@ -11,21 +11,22 @@ public class DamageDealer : MonoBehaviour
         if (!gameObject.activeInHierarchy) return;
 
         
-        
-        
-        
         PlayerHealth playerHealth = other.GetComponent<PlayerHealth>();
-
-        
         if (playerHealth != null && !playerHealth.IsDead)
         {
-            
             if (other.gameObject.name == "Player1" || other.gameObject.name == "Player2")
             {
                 playerHealth.SetLastDamageSource("EnemyDamageDealer");
                 playerHealth.TakeDamage(damageAmount);
-
+                return;
             }
+        }
+
+        
+        NPCHealth npcHealth = other.GetComponent<NPCHealth>();
+        if (npcHealth != null && !npcHealth.IsDead)
+        {
+            npcHealth.TakeDamage(damageAmount);
         }
     }
 
