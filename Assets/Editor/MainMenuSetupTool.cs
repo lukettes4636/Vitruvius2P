@@ -207,16 +207,16 @@ public class MainMenuSetupTool : EditorWindow
             // Standard Fog Settings for backup/blending
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.002f; // Very subtle global fog
-            // Fog color should be dark but visible against black background
-            RenderSettings.fogColor = new Color(0.2f, 0.2f, 0.2f); 
+            RenderSettings.fogDensity = 0.0008f; // Much more subtle global fog
+            // Fog color should be very subtle and atmospheric
+            RenderSettings.fogColor = new Color(0.15f, 0.15f, 0.18f); 
         }
         else
         {
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.002f; 
-            RenderSettings.fogColor = new Color(0.2f, 0.2f, 0.2f);
+            RenderSettings.fogDensity = 0.0008f; 
+            RenderSettings.fogColor = new Color(0.15f, 0.15f, 0.18f);
             Debug.LogWarning("Fog Prefab not found. Using Standard Fog.");
         }
 

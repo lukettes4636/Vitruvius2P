@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.gamelovers.mcp-unity": "file:C:/Users/LUK/Documents/mcp-unity-1.2.0",
     "com.unity.2d.spriteshape": "9.0.5",
     "com.unity.ai.navigation": "1.1.7",
     "com.unity.animation.rigging": "1.2.1",
