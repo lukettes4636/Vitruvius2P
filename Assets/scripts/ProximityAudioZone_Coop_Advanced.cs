@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 [RequireComponent(typeof(AudioSource))]
 [AddComponentMenu("Audio/Proximity Audio Zone (Co-op Curve)")]
@@ -28,7 +28,7 @@ public class ProximityAudioZone_Coop_Advanced : MonoBehaviour
 
     [Tooltip("Spatial Blend (0 = 2D, 1 = 3D).")]
     [Range(0f, 1f)]
-    public float spatialBlend = 1f;
+    public float spatialBlend = 0f;
 
     [Header("📈 Volumen por distancia (editable)")]
     [Tooltip("Curve that defines how volume changes with distance (0 = near, 1 = far).")]
