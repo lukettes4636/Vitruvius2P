@@ -12,6 +12,10 @@ public class DamageDealer : MonoBehaviour
 
         
         PlayerHealth playerHealth = other.GetComponent<PlayerHealth>();
+        if (playerHealth == null)
+        {
+            playerHealth = other.GetComponentInParent<PlayerHealth>();
+        }
         if (playerHealth != null && !playerHealth.IsDead)
         {
             if (other.gameObject.name == "Player1" || other.gameObject.name == "Player2")
@@ -24,6 +28,10 @@ public class DamageDealer : MonoBehaviour
 
         
         NPCHealth npcHealth = other.GetComponent<NPCHealth>();
+        if (npcHealth == null)
+        {
+            npcHealth = other.GetComponentInParent<NPCHealth>();
+        }
         if (npcHealth != null && !npcHealth.IsDead)
         {
             npcHealth.TakeDamage(damageAmount);

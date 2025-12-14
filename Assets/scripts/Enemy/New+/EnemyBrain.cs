@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(EnemySenses), typeof(EnemyMotor), typeof(EnemyVisuals))]
@@ -39,6 +39,8 @@ public class EnemyBrain : MonoBehaviour
     private float alertTimer = 0f;
     private bool hasShownFirstDetection = false;
     private float lastReDetectionTime = -999f;
+    private Vector3 preInvestigatePosition;
+    private bool isInvestigatingObjectNoise = false;
 
     void Start()
     {
@@ -118,8 +120,8 @@ public class EnemyBrain : MonoBehaviour
             if (senses.CurrentNoisyObject != null && currentTarget == senses.CurrentNoisyObject)
             {
                 
-                motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, 1f);
-                visuals.UpdateAnimationState(false);
+                motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 1f);
+                visuals.UpdateAnimationState(true);
                 return;
             }
             
@@ -243,6 +245,16 @@ public class EnemyBrain : MonoBehaviour
 
         visuals.TriggerAttack(Random.Range(1, 4));
 
+        float safetyTimer = 0f;
+        while (!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived && safetyTimer < 1.0f)
+        {
+            safetyTimer += Time.deltaTime;
+            yield return null;
+        }
+        visuals.EnableRightHand();
+        visuals.EnableLeftHand();
+        yield return new WaitForSeconds(0.2f);
+        visuals.StopAttack();
         yield return new WaitUntil(() => visuals.AnimFinishedReceived);
 
         visuals.StopAttack();
@@ -294,7 +306,15 @@ public class EnemyBrain : MonoBehaviour
 
         
         visuals.SetInvestigatingMode(false);
-        StartCoroutine(ReturnToPatrolRoutine());
+        if (isInvestigatingObjectNoise)
+        {
+            StartCoroutine(ReturnToPreviousSpotRoutine());
+        }
+        else
+        {
+            StartCoroutine(ReturnToPatrolRoutine());
+        }
+        isInvestigatingObjectNoise = false;
     }
 
     IEnumerator PatrolWaitRoutine()
@@ -308,7 +328,19 @@ public class EnemyBrain : MonoBehaviour
     }
 
     
-    void WakeUp() { hasAwakened = true; visuals.SetPassiveState(0); StartCoroutine(WakeUpAndRoarRoutine()); }
+    void WakeUp() 
+    { 
+        hasAwakened = true; 
+        visuals.SetPassiveState(0); 
+        if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
+        {
+            StartCoroutine(WakeUpQuietRoutine());
+        }
+        else
+        {
+            StartCoroutine(WakeUpAndRoarRoutine());
+        }
+    }
     void GoToNextPatrolPoint() { if (patrolPoints.Length == 0) return; patrolIndex = (patrolIndex + 1) % patrolPoints.Length; motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.1f); }
     void TryDestroyWall(GameObject w) { if (w) { var s = w.GetComponent<Wall_Destruction>(); if (s) { s.Explode(w.transform.position, transform.forward); visuals.PlayWallBreakSound(); DialogueManager.ShowEnemyWallBreakDialogue(); } } }
     void HandleDialogueFeedback() 
@@ -329,4 +361,33 @@ public class EnemyBrain : MonoBehaviour
         } 
     }
     public void OnEnemyDeath() { currentState = State.Dead; motor.Stop(); StopAllCoroutines(); if (cameraController) cameraController.StopTrackingEnemy(); }
+
+    IEnumerator WakeUpQuietRoutine()
+    {
+        currentState = State.Transitioning;
+        motor.Stop();
+        motor.SetAutoRotation(false);
+        visuals.UpdateAnimationState(true);
+        preInvestigatePosition = transform.position;
+        isInvestigatingObjectNoise = true;
+        Vector3 pos = senses.TargetPositionOfInterest;
+        StartCoroutine(InvestigateRoutine(pos));
+        yield return null;
+    }
+
+    IEnumerator ReturnToPreviousSpotRoutine()
+    {
+        currentState = State.Transitioning;
+        visuals.UpdateAnimationState(true);
+        motor.MoveTo(preInvestigatePosition, crawlSpeed, 0.1f);
+        float t = 0f;
+        while (motor.GetRemainingDistance() > 0.2f && t < 6f)
+        {
+            t += Time.deltaTime;
+            visuals.UpdateAnimationState(true);
+            yield return null;
+        }
+        currentState = State.Patrol;
+        motor.SetAutoRotation(true);
+    }
 }

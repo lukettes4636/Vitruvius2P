@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 
 using UnityEngine.Animations.Rigging;
@@ -46,10 +46,22 @@ public class EnemyVisuals : MonoBehaviour
     public Rig headAimRig;
     [Tooltip("Arrastra aqui el objeto 'LookTarget' (Esfera vacia)")]
     public Transform lookTarget;
+    [Tooltip("Hueso de la cabeza para anclar el objetivo de mirada")]
+    public Transform headBone;
     [Tooltip("Distancia lateral del barrido de cabeza")]
     public float scanWidth = 1.5f;
     [Tooltip("Velocidad del movimiento de cabeza")]
     public float scanSpeed = 2.0f;
+    [Tooltip("Ancho del barrido cuando esta agachado/crawling")]
+    public float crawlScanWidth = 0.8f;
+    [Tooltip("Velocidad del barrido cuando esta agachado/crawling")]
+    public float crawlScanSpeed = 1.5f;
+    [Tooltip("Amplitud vertical del barrido en modo crawling")]
+    public float verticalScanAmplitude = 0.2f;
+    [Tooltip("Distancia frontal del LookTarget desde la cabeza")]
+    public float lookTargetDistance = 1.2f;
+    [Tooltip("Velocidad de mezcla del peso del rig de mirada")]
+    public float investigateRigBlendSpeed = 2f;
 
     
     
@@ -88,6 +100,8 @@ public class EnemyVisuals : MonoBehaviour
 
         
         DisableAllHitboxes();
+        EnsureHitboxSetup(rightHandCollider);
+        EnsureHitboxSetup(leftHandCollider);
 
         
         if (roarMaterial != null)
@@ -127,23 +141,38 @@ public class EnemyVisuals : MonoBehaviour
         
         
         float targetWeight = isInvestigating ? 1f : 0f;
-        headAimRig.weight = Mathf.MoveTowards(headAimRig.weight, targetWeight, Time.deltaTime * 2f);
+        headAimRig.weight = Mathf.MoveTowards(headAimRig.weight, targetWeight, Time.deltaTime * investigateRigBlendSpeed);
 
         
         if (headAimRig.weight > 0.01f)
         {
             
-            float oscillation = Mathf.Sin(Time.time * scanSpeed);
+            bool isCrawlingAnim = anim != null && anim.GetBool("isCrawling");
+            float useSpeed = isCrawlingAnim ? crawlScanSpeed : scanSpeed;
+            float useWidth = isCrawlingAnim ? crawlScanWidth : scanWidth;
+            float t = Time.time * useSpeed;
+            float oscX = Mathf.Sin(t) * useWidth;
+            float oscY = isCrawlingAnim ? Mathf.Sin(t * 0.5f) * verticalScanAmplitude : 0f;
 
             
-            float moveX = oscillation * scanWidth;
+            if (headBone != null)
+            {
+                Vector3 basePos = headBone.position + headBone.forward * lookTargetDistance;
+                Vector3 targetPosWorld = basePos + headBone.right * oscX + headBone.up * oscY;
+                lookTarget.position = targetPosWorld;
+            }
+            else
+            {
+                Vector3 targetPosLocal = initialTargetLocalPos;
+                targetPosLocal.x += oscX;
+                targetPosLocal.y += oscY;
+                lookTarget.localPosition = targetPosLocal;
+            }
 
             
             Vector3 targetPos = initialTargetLocalPos;
-            targetPos.x += moveX;
-
+            targetPos.x += oscX;
             
-            lookTarget.localPosition = targetPos;
         }
         else
         {
@@ -260,12 +289,15 @@ public class EnemyVisuals : MonoBehaviour
     public void AE_ActionImpact()
     {
         AnimImpactReceived = true;
+        EnableRightHand();
+        EnableLeftHand();
     }
 
     
     public void AE_ActionFinish()
     {
         AnimFinishedReceived = true;
+        DisableAllHitboxes();
     }
 
     
@@ -302,6 +334,21 @@ public class EnemyVisuals : MonoBehaviour
     
     
     
+
+    private void EnsureHitboxSetup(GameObject go)
+    {
+        if (!go) return;
+        var col = go.GetComponent<Collider>();
+        if (col) col.isTrigger = true;
+        var rb = go.GetComponent<Rigidbody>();
+        if (!rb)
+        {
+            rb = go.AddComponent<Rigidbody>();
+        }
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+    }
 
     public void AE_StartRoarEffect()
     {
