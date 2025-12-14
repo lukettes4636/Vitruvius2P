@@ -2,6 +2,7 @@
 using UnityEngine.VFX;
 using System.Reflection;
 using System.Linq; 
+using UnityEngine.InputSystem; 
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerNoiseEmitter : MonoBehaviour
@@ -34,17 +35,21 @@ public class PlayerNoiseEmitter : MonoBehaviour
     private CharacterController controller;
     private float visualRadius = 0f;
     private bool isRingVisible = true;
-
     
-    
-    
-    public bool IsRingVisible => isRingVisible;
+    public bool IsRingVisible
+    {
+        get { return isRingVisible; }
+        set { isRingVisible = value; }
+    }
     
     private object activeMovementScript;
     private FieldInfo isMovingField;
     private FieldInfo isRunningField;
     private FieldInfo isCrouchingField;
     private bool reflectionInitialized = false;
+
+    [Header("Input para Toggle de Noise Ring")]
+    [SerializeField] private InputActionReference toggleNoiseRingAction; 
 
     void Awake()
     {
@@ -58,9 +63,24 @@ public class PlayerNoiseEmitter : MonoBehaviour
         lastLogTime = Time.time;
     }
 
-    
-    
-    
+    void OnEnable()
+    {
+        if (toggleNoiseRingAction != null && toggleNoiseRingAction.action != null)
+        {
+            toggleNoiseRingAction.action.Enable();
+            toggleNoiseRingAction.action.performed += ctx => ToggleRingVisibility();
+        }
+    }
+
+    void OnDisable()
+    {
+        if (toggleNoiseRingAction != null && toggleNoiseRingAction.action != null)
+        {
+            toggleNoiseRingAction.action.performed -= ctx => ToggleRingVisibility();
+            toggleNoiseRingAction.action.Disable();
+        }
+    }
+
     void InitializeReflection()
     {
         
@@ -183,27 +203,21 @@ public class PlayerNoiseEmitter : MonoBehaviour
         visualRadius = Mathf.Lerp(visualRadius, currentNoiseRadius, Time.deltaTime * visualLerpSpeed);
 
         
-        bool shouldShowRing = isRingVisible && (visualRadius > 0.1f);
-        
-        if (shouldShowRing)
-        {
-            
-            noiseVFX.SetFloat(vfxRadiusProperty, visualRadius);
-
-            
-            float targetPulse = idlePulseSpeed;
-
-            if (currentNoiseRadius >= runNoiseRadius - 0.1f)
-                targetPulse = runPulseSpeed;
-            else if (currentNoiseRadius >= walkNoiseRadius - 0.1f)
-                targetPulse = walkPulseSpeed;
-
-            
-            noiseVFX.SetFloat(vfxPulseProperty, targetPulse);
-        }
+        noiseVFX.SetFloat(vfxRadiusProperty, visualRadius);
 
         
-        noiseVFX.enabled = shouldShowRing;
+        float targetPulse = idlePulseSpeed;
+
+        if (currentNoiseRadius >= runNoiseRadius - 0.1f)
+            targetPulse = runPulseSpeed;
+        else if (currentNoiseRadius >= walkNoiseRadius - 0.1f)
+            targetPulse = walkPulseSpeed;
+
+        
+        noiseVFX.SetFloat(vfxPulseProperty, targetPulse);
+
+        
+        noiseVFX.enabled = isRingVisible && (visualRadius > 0.1f);
     }
 
     void OnDrawGizmosSelected()
