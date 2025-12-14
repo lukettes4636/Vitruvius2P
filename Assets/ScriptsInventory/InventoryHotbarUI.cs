@@ -6,19 +6,22 @@ public class InventoryHotbarUI : MonoBehaviour
 {
     [Header("Referencias")]
     public PlayerInventory playerInventory;
-    public Image[] hotbarSlots; // los 4 slots de la UI
+
+    // CAMBIO 1: Ya no usamos hotbarSlots para poner el ítem, 
+    // sino un array dedicado a los íconos hijos.
+    [Tooltip("Arrastra aquí las Imágenes HIJAS (ItemIcon) de cada slot")]
+    public Image[] slotIcons;
 
     [Header("Sprites de ítems")]
     public Sprite cardIcon;
     public Sprite leverIcon;
     public Sprite keyIcon;
-    public Sprite emptyIcon;
+    // public Sprite emptyIcon; // Ya no es necesario si ocultamos el ícono
 
     private Dictionary<string, Sprite> itemSprites = new Dictionary<string, Sprite>();
 
     private void Awake()
     {
-        // Crear el diccionario de íconos
         itemSprites["Card"] = cardIcon;
         itemSprites["Lever"] = leverIcon;
         itemSprites["Key"] = keyIcon;
@@ -29,36 +32,49 @@ public class InventoryHotbarUI : MonoBehaviour
         RefreshHotbar();
     }
 
-    // Este método será llamado desde PlayerInventory cuando se actualice
     public void RefreshHotbar()
     {
         if (playerInventory == null) return;
-        if (hotbarSlots == null || hotbarSlots.Length == 0) return;
+        if (slotIcons == null || slotIcons.Length == 0) return;
 
         var items = playerInventory.GetCollectedItems();
         var keyCards = playerInventory.GetCollectedKeyCards();
 
-        // Combinar ambos tipos de ítems
         List<string> allItems = new List<string>();
         allItems.AddRange(items);
         allItems.AddRange(keyCards);
 
-        for (int i = 0; i < hotbarSlots.Length; i++)
+        for (int i = 0; i < slotIcons.Length; i++)
         {
+            // Caso A: Hay un ítem en este slot
             if (i < allItems.Count)
             {
                 string itemID = allItems[i];
-                if (itemSprites.ContainsKey(itemID))
-                    hotbarSlots[i].sprite = itemSprites[itemID];
-                else
-                    hotbarSlots[i].sprite = emptyIcon;
 
-                hotbarSlots[i].enabled = true;
+                if (itemSprites.ContainsKey(itemID))
+                {
+                    slotIcons[i].sprite = itemSprites[itemID];
+
+                    // IMPORTANTE: Aseguramos que el color sea visible (Alpha 1)
+                    slotIcons[i].color = Color.white;
+
+                    // IMPORTANTE: Activamos la imagen para que se vea
+                    slotIcons[i].enabled = true;
+                }
+                else
+                {
+                    // Si hay ítem pero no tenemos su icono, ocultamos para evitar cuadro blanco
+                    slotIcons[i].enabled = false;
+                }
             }
+            // Caso B: El slot está vacío
             else
             {
-                hotbarSlots[i].sprite = emptyIcon;
-                hotbarSlots[i].enabled = true;
+                slotIcons[i].sprite = null; // Quitamos la referencia (opcional)
+
+                // ESTA ES LA CLAVE: Desactivamos el componente Image
+                // Al hacer esto, Unity deja de renderizar el cuadrado blanco.
+                slotIcons[i].enabled = false;
             }
         }
     }
