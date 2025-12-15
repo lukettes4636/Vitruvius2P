@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using UnityEngine;
+using System.Collections.Generic;
 
 public class EnemySenses : MonoBehaviour
 {
@@ -47,9 +48,11 @@ public class EnemySenses : MonoBehaviour
     public Transform CurrentTarget => CurrentPlayer ?? CurrentNPCTarget ?? CurrentNoisyObject;
 
     public bool showDebugGizmos = true;
+    private Dictionary<Transform, float> ignoredObjectsUntil = new Dictionary<Transform, float>();
 
     public void Tick()
     {
+        PruneIgnoredObjects();
         ProcessAudioDetection();
         ProcessObjectNoiseDetection();
     }
@@ -214,11 +217,18 @@ public class EnemySenses : MonoBehaviour
         {
             if (objectNoiseDetection.GetLoudestObject(out Transform noisyObject, out Vector3 objectPosition))
             {
-                CurrentNoisyObject = noisyObject;
-                TargetPositionOfInterest = objectPosition;
-                HasTargetOfInterest = true;
-                timeSinceLastHeard = 0f;
-                return;
+                if (noisyObject != null && IsObjectIgnored(noisyObject))
+                {
+                    
+                }
+                else
+                {
+                    CurrentNoisyObject = noisyObject;
+                    TargetPositionOfInterest = objectPosition;
+                    HasTargetOfInterest = true;
+                    timeSinceLastHeard = 0f;
+                    return;
+                }
             }
         }
 
@@ -235,6 +245,34 @@ public class EnemySenses : MonoBehaviour
         CurrentPlayer = null;
         CurrentNPCTarget = null;
         CurrentNoisyObject = null;
+    }
+    public void IgnoreCurrentNoisyObjectFor(float seconds)
+    {
+        if (CurrentNoisyObject != null)
+        {
+            ignoredObjectsUntil[CurrentNoisyObject] = Time.time + seconds;
+            CurrentNoisyObject = null;
+            HasTargetOfInterest = false;
+        }
+    }
+    private bool IsObjectIgnored(Transform obj)
+    {
+        if (obj == null) return false;
+        if (ignoredObjectsUntil.TryGetValue(obj, out float until))
+        {
+            return Time.time < until;
+        }
+        return false;
+    }
+    private void PruneIgnoredObjects()
+    {
+        if (ignoredObjectsUntil.Count == 0) return;
+        var keys = new List<Transform>(ignoredObjectsUntil.Keys);
+        foreach (var k in keys)
+        {
+            if (ignoredObjectsUntil[k] <= Time.time)
+                ignoredObjectsUntil.Remove(k);
+        }
     }
 
     private void OnDrawGizmosSelected()

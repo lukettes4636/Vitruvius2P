@@ -62,6 +62,9 @@ public class EnemyVisuals : MonoBehaviour
     public float lookTargetDistance = 1.2f;
     [Tooltip("Velocidad de mezcla del peso del rig de mirada")]
     public float investigateRigBlendSpeed = 2f;
+    private bool overrideScan = false;
+    private float overrideT = 0f;
+    public bool IsScanning { get; private set; }
 
     
     
@@ -150,7 +153,7 @@ public class EnemyVisuals : MonoBehaviour
             bool isCrawlingAnim = anim != null && anim.GetBool("isCrawling");
             float useSpeed = isCrawlingAnim ? crawlScanSpeed : scanSpeed;
             float useWidth = isCrawlingAnim ? crawlScanWidth : scanWidth;
-            float t = Time.time * useSpeed;
+            float t = overrideScan ? overrideT : Time.time * useSpeed;
             float oscX = Mathf.Sin(t) * useWidth;
             float oscY = isCrawlingAnim ? Mathf.Sin(t * 0.5f) * verticalScanAmplitude : 0f;
 
@@ -201,8 +204,15 @@ public class EnemyVisuals : MonoBehaviour
         float currentSpeed = anim.GetFloat("Speed");
 
         
-        float newSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, Time.deltaTime * animationDampTime);
-        anim.SetFloat("Speed", newSpeed);
+        if (!motor.IsMoving)
+        {
+            anim.SetFloat("Speed", 0f);
+        }
+        else
+        {
+            float newSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, Time.deltaTime * animationDampTime);
+            anim.SetFloat("Speed", newSpeed);
+        }
 
         
         if (motor.IsMoving)
@@ -413,5 +423,32 @@ public class EnemyVisuals : MonoBehaviour
             }
             yield return new WaitForSeconds(interval);
         }
+    }
+
+    public IEnumerator RunScanCycles(int cycles)
+    {
+        SetInvestigatingMode(true);
+        overrideScan = true;
+        IsScanning = true;
+        int completed = 0;
+        float lastSign = 0f;
+        bool isCrawlingAnim = anim != null && anim.GetBool("isCrawling");
+        float useSpeed = isCrawlingAnim ? crawlScanSpeed : scanSpeed;
+        overrideT = 0f;
+        while (completed < cycles)
+        {
+            overrideT += Time.deltaTime * useSpeed;
+            float s = Mathf.Sin(overrideT);
+            float sign = Mathf.Sign(s);
+            if (lastSign <= 0f && sign > 0f)
+            {
+                completed++;
+            }
+            lastSign = sign;
+            yield return null;
+        }
+        overrideScan = false;
+        IsScanning = false;
+        SetInvestigatingMode(false);
     }
 }

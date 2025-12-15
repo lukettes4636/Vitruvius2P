@@ -156,7 +156,8 @@ public class EnemyBrain : MonoBehaviour
 
         if (senses.HasTargetOfInterest)
         {
-            if (Vector3.Distance(transform.position, senses.TargetPositionOfInterest) <= attackRange && !senses.CheckForWallInFront())
+            bool hasCharacterTarget = senses.CurrentPlayer != null || senses.CurrentNPCTarget != null;
+            if (hasCharacterTarget && Vector3.Distance(transform.position, senses.TargetPositionOfInterest) <= attackRange && !senses.CheckForWallInFront())
             {
                 
                 StartCoroutine(AttackTargetRoutine());
@@ -173,7 +174,14 @@ public class EnemyBrain : MonoBehaviour
     {
         if (senses.HasTargetOfInterest)
         {
-            StartCoroutine(WakeUpAndRoarRoutine());
+            if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
+            {
+                StartCoroutine(WakeUpQuietRoutine());
+            }
+            else
+            {
+                StartCoroutine(WakeUpAndRoarRoutine());
+            }
             return;
         }
         if (patrolPoints.Length == 0) return;
@@ -239,6 +247,21 @@ public class EnemyBrain : MonoBehaviour
 
     IEnumerator AttackTargetRoutine()
     {
+        bool hasCharacterTarget = senses.CurrentPlayer != null || senses.CurrentNPCTarget != null;
+        if (!hasCharacterTarget)
+        {
+            currentState = State.Chasing;
+            yield break;
+        }
+        Transform tgt = senses.CurrentNPCTarget != null ? senses.CurrentNPCTarget : senses.CurrentPlayer;
+        var pHealth = tgt != null ? tgt.GetComponent<PlayerHealth>() : null;
+        var nHealth = tgt != null ? tgt.GetComponent<NPCHealth>() : null;
+        if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
+        {
+            senses.ForgetTarget();
+            StartCoroutine(ReturnToPatrolRoutine());
+            yield break;
+        }
         currentState = State.Attacking;
         motor.Stop();
         motor.RotateTowards(senses.TargetPositionOfInterest);
@@ -249,6 +272,13 @@ public class EnemyBrain : MonoBehaviour
         while (!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived && safetyTimer < 1.0f)
         {
             safetyTimer += Time.deltaTime;
+            if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
+            {
+                visuals.StopAttack();
+                senses.ForgetTarget();
+                StartCoroutine(ReturnToPatrolRoutine());
+                yield break;
+            }
             yield return null;
         }
         visuals.EnableRightHand();
@@ -258,6 +288,12 @@ public class EnemyBrain : MonoBehaviour
         yield return new WaitUntil(() => visuals.AnimFinishedReceived);
 
         visuals.StopAttack();
+        if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
+        {
+            senses.ForgetTarget();
+            StartCoroutine(ReturnToPatrolRoutine());
+            yield break;
+        }
         currentState = State.Chasing;
         yield return new WaitForSeconds(attackCooldown);
     }
@@ -279,15 +315,15 @@ public class EnemyBrain : MonoBehaviour
     IEnumerator InvestigateRoutine(Vector3 pos)
     {
         currentState = State.Investigating;
-        motor.MoveTo(pos, investigationSpeed, 1f);
+        motor.MoveTo(pos, investigationSpeed, 0.1f);
 
         float timer = 0f;
-        while (timer < 8.0f)
+        while (timer < 6.0f)
         {
             timer += Time.deltaTime;
 
             
-            if (motor.GetRemainingDistance() > 0.2f)
+            if (motor.GetRemainingDistance() > 0.15f)
             {
                 visuals.UpdateAnimationState(true);
                 
@@ -298,16 +334,19 @@ public class EnemyBrain : MonoBehaviour
                 
                 motor.Stop();
                 
-                visuals.SetInvestigatingMode(true);
-                visuals.UpdateAnimationState(true); 
+                visuals.UpdateAnimationState(true);
+                yield return StartCoroutine(visuals.RunScanCycles(4));
+                break;
             }
             yield return null;
         }
 
         
         visuals.SetInvestigatingMode(false);
+        senses.ForgetTarget();
         if (isInvestigatingObjectNoise)
         {
+            senses.IgnoreCurrentNoisyObjectFor(8f);
             StartCoroutine(ReturnToPreviousSpotRoutine());
         }
         else
@@ -360,7 +399,16 @@ public class EnemyBrain : MonoBehaviour
             lastReDetectionTime = Time.time; 
         } 
     }
-    public void OnEnemyDeath() { currentState = State.Dead; motor.Stop(); StopAllCoroutines(); if (cameraController) cameraController.StopTrackingEnemy(); }
+    public void OnEnemyDeath() 
+    { 
+        senses.ForgetTarget();
+        visuals.StopAttack();
+        visuals.SetInvestigatingMode(false);
+        motor.Stop(); 
+        StopAllCoroutines(); 
+        if (cameraController) cameraController.StopTrackingEnemy(); 
+        currentState = State.Dead; 
+    }
 
     IEnumerator WakeUpQuietRoutine()
     {
