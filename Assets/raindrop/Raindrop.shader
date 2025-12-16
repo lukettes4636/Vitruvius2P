@@ -1,4 +1,4 @@
-﻿// This shader is converted from 
+// This shader is converted from 
 // Heartfelt(https://www.shadertoy.com/view/ltffzl) - by Martijn Steinrucken aka BigWings - 2017
 // countfrolic@gmail.com
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
@@ -46,7 +46,7 @@ Shader "Custom/Raindrop" {
 				float2 UV = uv;
 
 				uv.y += t*0.75;
-				float2 a = float2(6., 1.);
+				float2 a = float2(3., 1.);  // Reducido 50% de 6 a 3
 				float2 grid = a*2.;
 				float2 id = floor(uv*grid);
 
@@ -69,7 +69,7 @@ Shader "Custom/Raindrop" {
 
 				float d = length((st - p)*a.yx);
 
-				float mainDrop = S(.4, .0, d);
+				float mainDrop = S(.2, .0, d);  // Reducido de .4 a .2 para gotas más pequeñas
 
 				float r = sqrt(S(1., y, st.y));
 				float cd = abs(st.x - x);
@@ -106,7 +106,7 @@ Shader "Custom/Raindrop" {
 			float2 Drops(float2 uv, float t, float l0, float l1, float l2) {
 				float s = StaticDrops(uv, t)*l0;
 				float2 m1 = DropLayer2(uv, t)*l1;
-				float2 m2 = DropLayer2(uv*1.85, t)*l2;
+				float2 m2 = DropLayer2(uv*1.25, t)*l2;  // Reducido de 1.85 a 1.25 para mantener proporción
 
 				float c = s + m1.x + m2.x;
 				c = S(.3, 1., c);
