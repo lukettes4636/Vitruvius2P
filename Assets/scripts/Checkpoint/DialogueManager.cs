@@ -56,13 +56,30 @@ public class DialogueManager : MonoBehaviour
     {
         if (player == null) return;
         if (instance == null) return;
+
         PlayerPopupBillboard billboard = player.GetComponent<PlayerPopupBillboard>();
         if (billboard == null) billboard = player.GetComponentInChildren<PlayerPopupBillboard>();
-        if (billboard == null) return;
-        instance.activeMessageCount++;
-        instance.dialogueActive = true;
-        billboard.ShowMessage(message, duration);
-        instance.StartCoroutine(instance.DeactivateAfter(duration));
+
+        if (billboard != null)
+        {
+            instance.activeMessageCount++;
+            instance.dialogueActive = true;
+            billboard.ShowMessage(message, duration);
+            instance.StartCoroutine(instance.DeactivateAfter(duration));
+            return;
+        }
+
+        NPCPopupBillboard npcBillboard = player.GetComponent<NPCPopupBillboard>();
+        if (npcBillboard == null) npcBillboard = player.GetComponentInChildren<NPCPopupBillboard>();
+
+        if (npcBillboard != null)
+        {
+            instance.activeMessageCount++;
+            instance.dialogueActive = true;
+            npcBillboard.ShowMessage(message, duration);
+            instance.StartCoroutine(instance.DeactivateAfter(duration));
+            return;
+        }
     }
 
     private IEnumerator DeactivateAfter(float seconds)
