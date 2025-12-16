@@ -95,6 +95,15 @@ public class MainMenuThunderEffect : MonoBehaviour
             }
         }
 
+        
+        if (thunderAudioSource != null)
+        {
+            thunderAudioSource.spatialBlend = 0f;  
+            thunderAudioSource.volume = 1f;      
+            thunderAudioSource.priority = 0;     
+            thunderAudioSource.playOnAwake = false;
+        }
+
         StartCoroutine(ThunderLoop());
     }
 
@@ -267,7 +276,7 @@ public class MainMenuThunderEffect : MonoBehaviour
             float originalPitch = thunderAudioSource.pitch;
             
             
-            float boostedVolume = Mathf.Clamp01(thunderVolume * 1.5f); 
+            float boostedVolume = 1f; 
             thunderAudioSource.volume = boostedVolume;
             thunderAudioSource.pitch = thunderPitch;
             
@@ -275,7 +284,18 @@ public class MainMenuThunderEffect : MonoBehaviour
             thunderAudioSource.enabled = true;
             thunderAudioSource.playOnAwake = false;
             
+            
+            thunderAudioSource.spatialBlend = 0f;  
+            thunderAudioSource.volume = 1f;      
+            
+            
+            thunderAudioSource.priority = 0;     
+            thunderAudioSource.panStereo = 0f;   
+            thunderAudioSource.reverbZoneMix = 1f; 
+            thunderAudioSource.dopplerLevel = 0f; 
+            
 
+            
             thunderAudioSource.PlayOneShot(clip);
             
             
