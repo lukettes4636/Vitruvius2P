@@ -750,14 +750,13 @@ public class PauseController : MonoBehaviour
         #endif
     }
 
-    void Update()
+void Update()
     {
         
         if (Application.isEditor || Debug.isDebugBuild)
         {
             if (Keyboard.current != null && (Keyboard.current.escapeKey.wasPressedThisFrame || Keyboard.current.pKey.wasPressedThisFrame))
             {
-
                 TogglePause();
             }
         }
@@ -768,34 +767,49 @@ public class PauseController : MonoBehaviour
         float verticalInput = 0f;
         
         
+        
         if (player1Input != null && player1Input.actions != null)
         {
             var moveAction = FindMoveAction(player1Input);
-            if (moveAction != null)
+            if (moveAction != null && moveAction.enabled)
             {
                 Vector2 moveInput = moveAction.ReadValue<Vector2>();
                 if (Mathf.Abs(moveInput.y) > navigationThreshold) verticalInput = moveInput.y;
             }
         }
         
-        
         if (verticalInput == 0f && player2Input != null && player2Input.actions != null)
         {
             var moveAction = FindMoveAction(player2Input);
-            if (moveAction != null)
+            if (moveAction != null && moveAction.enabled)
             {
                 Vector2 moveInput = moveAction.ReadValue<Vector2>();
                 if (Mathf.Abs(moveInput.y) > navigationThreshold) verticalInput = moveInput.y;
+            }
+        }
+
+        
+        if (verticalInput == 0f)
+        {
+            foreach (var gamepad in Gamepad.all)
+            {
+                float y = gamepad.leftStick.y.ReadValue();
+                if (Mathf.Abs(y) > navigationThreshold) { verticalInput = y; break; }
+                
+                float dpadY = gamepad.dpad.y.ReadValue();
+                if (Mathf.Abs(dpadY) > navigationThreshold) { verticalInput = dpadY; break; }
             }
         }
         
         
         if (Mathf.Abs(verticalInput) > navigationThreshold && Time.unscaledTime - lastNavigationTime > navigationCooldown)
         {
+            
             if (verticalInput > 0f) 
             {
                 NavigateUp();
             }
+            
             else if (verticalInput < 0f) 
             {
                 NavigateDown();
@@ -855,6 +869,15 @@ public class PauseController : MonoBehaviour
             if (submitAction != null && submitAction.WasPressedThisFrame())
             {
                 submitPressed = true;
+            }
+        }
+
+        
+        if (!submitPressed)
+        {
+            foreach (var gamepad in Gamepad.all)
+            {
+                if (gamepad.buttonSouth.wasPressedThisFrame) { submitPressed = true; break; }
             }
         }
         

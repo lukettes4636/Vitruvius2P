@@ -8,7 +8,8 @@ using UnityEngine.InputSystem;
 public class PlayerNoiseEmitter : MonoBehaviour
 {
     [Header("Radios de ruido (metros)")]
-    public float idleNoiseRadius = 1f;
+    [Tooltip("Radio de ruido constante en idle (SIEMPRE activo para deteccion cercana)")]
+    public float idleNoiseRadius = 2.5f; 
     public float walkNoiseRadius = 3f;
     public float crouchNoiseRadius = 2f;
     public float runNoiseRadius = 6f;
@@ -146,7 +147,7 @@ public class PlayerNoiseEmitter : MonoBehaviour
     
     
     
-    void CalculateLogicRadius()
+void CalculateLogicRadius()
     {
         bool isMoving = false;
         bool isRunning = false;
@@ -162,8 +163,6 @@ public class PlayerNoiseEmitter : MonoBehaviour
             }
             catch (System.Exception ex)
             {
-                
-
                 reflectionInitialized = false;
             }
         }
@@ -175,7 +174,7 @@ public class PlayerNoiseEmitter : MonoBehaviour
         }
 
         
-        float targetRadius = idleNoiseRadius;
+        float targetRadius = idleNoiseRadius; 
 
         if (isMoving)
         {
@@ -184,7 +183,9 @@ public class PlayerNoiseEmitter : MonoBehaviour
             else targetRadius = walkNoiseRadius;
         }
 
-        currentNoiseRadius = targetRadius;
+        
+        
+        currentNoiseRadius = Mathf.Max(targetRadius, idleNoiseRadius);
     }
 
     

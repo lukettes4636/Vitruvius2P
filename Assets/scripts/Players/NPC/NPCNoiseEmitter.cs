@@ -11,8 +11,8 @@ using UnityEngine.AI;
 public class NPCNoiseEmitter : MonoBehaviour
 {
     [Header("Radios de ruido (metros)")]
-    [Tooltip("Radio de ruido cuando el NPC esta quieto")]
-    public float idleNoiseRadius = 1f;
+    [Tooltip("Radio de ruido constante cuando el NPC esta quieto (SIEMPRE activo para deteccion cercana)")]
+    public float idleNoiseRadius = 2.5f; 
     [Tooltip("Radio de ruido cuando el NPC esta caminando")]
     public float walkNoiseRadius = 3f;
     [Tooltip("Radio de ruido cuando el NPC esta corriendo")]
@@ -93,7 +93,7 @@ public class NPCNoiseEmitter : MonoBehaviour
     
     
     
-    void CalculateLogicRadius()
+void CalculateLogicRadius()
     {
         if (agent == null)
         {
@@ -114,7 +114,7 @@ public class NPCNoiseEmitter : MonoBehaviour
         }
 
         
-        float targetRadius = idleNoiseRadius;
+        float targetRadius = idleNoiseRadius; 
 
         if (isMoving)
         {
@@ -128,7 +128,9 @@ public class NPCNoiseEmitter : MonoBehaviour
                 targetRadius = idleNoiseRadius;
         }
 
-        currentNoiseRadius = targetRadius;
+        
+        
+        currentNoiseRadius = Mathf.Max(targetRadius, idleNoiseRadius);
     }
 
     
