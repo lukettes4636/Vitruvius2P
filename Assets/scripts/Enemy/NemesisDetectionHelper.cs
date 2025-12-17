@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class NemesisDetectionHelper : MonoBehaviour
 {
@@ -244,7 +244,7 @@ public class NemesisDetectionHelper : MonoBehaviour
         else if (parentAIEnhanced != null)
         {
             Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(transform.position, parentAIEnhanced.visualDetectionRadius);
+            Gizmos.DrawWireSphere(transform.position, parentAIEnhanced.detectionRadius);
         }
     }
 }

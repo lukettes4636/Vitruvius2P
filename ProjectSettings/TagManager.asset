@@ -14,6 +14,7 @@ TagManager:
   - Ray
   - Player_Weapon
   - OriginalWall
+  - NPC
   layers:
   - Default
   - TransparentFX

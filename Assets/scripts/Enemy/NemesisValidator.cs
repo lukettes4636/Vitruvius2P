@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class NemesisValidator : MonoBehaviour
 {
@@ -238,8 +238,10 @@ public class NemesisValidator : MonoBehaviour
     {
 
         
-        var nemesisAI = GetComponent<NemesisAI>();
-        if (nemesisAI == null)
+        var basicAI = GetComponent<NemesisAI>();
+        var enhancedAI = GetComponent<NemesisAI_Enhanced>();
+        
+        if (basicAI == null && enhancedAI == null)
         {
 
             return false;
@@ -247,8 +249,12 @@ public class NemesisValidator : MonoBehaviour
         
         bool passed = true;
         
+        float radius = enhancedAI != null ? enhancedAI.detectionRadius : basicAI.detectionRadius;
+        float attackRange = enhancedAI != null ? enhancedAI.attackRange : basicAI.attackRange;
+        float walkSpeed = enhancedAI != null ? enhancedAI.walkSpeed : basicAI.walkSpeed;
+        float chaseSpeed = enhancedAI != null ? enhancedAI.chaseSpeed : basicAI.chaseSpeed;
         
-        if (nemesisAI.detectionRadius <= 0)
+        if (radius <= 0)
         {
 
             passed = false;
@@ -258,8 +264,7 @@ public class NemesisValidator : MonoBehaviour
 
         }
         
-        
-        if (nemesisAI.attackRange <= 0)
+        if (attackRange <= 0)
         {
 
             passed = false;
@@ -269,8 +274,7 @@ public class NemesisValidator : MonoBehaviour
 
         }
         
-        
-        if (nemesisAI.walkSpeed <= 0)
+        if (walkSpeed <= 0)
         {
 
             passed = false;
@@ -280,7 +284,7 @@ public class NemesisValidator : MonoBehaviour
 
         }
         
-        if (nemesisAI.chaseSpeed <= 0)
+        if (chaseSpeed <= 0)
         {
 
             passed = false;
@@ -295,7 +299,7 @@ public class NemesisValidator : MonoBehaviour
     
     void UpdateComponentStatus()
     {
-        hasNemesisAI = GetComponent<NemesisAI>() != null;
+        hasNemesisAI = GetComponent<NemesisAI>() != null || GetComponent<NemesisAI_Enhanced>() != null;
         hasDetectionHelper = GetComponent<NemesisDetectionHelper>() != null;
         hasTester = GetComponent<NemesisTester>() != null;
         hasRigidbody = GetComponent<Rigidbody>() != null;

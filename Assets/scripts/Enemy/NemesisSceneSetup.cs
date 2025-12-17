@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.AI;
 
 #if UNITY_EDITOR
@@ -45,15 +45,7 @@ public class NemesisSceneSetup : MonoBehaviour
     public AudioClip[] attackSounds;
     public AudioClip[] detectionSounds;
     public AudioClip[] footstepSounds;
-    public AudioClip[] roarSounds;
-    
-    [Header("Behavior Settings")]
-    [Tooltip("Allow Nemesis to wander when patrolling")]
-    public bool enableWander = true;
-    [Tooltip("Play roar animation when detecting target")]
-    public bool enableRoar = true;
-    [Tooltip("Force walk animation even when chasing")]
-    public bool forceWalkOnly = true;
+    public AudioClip[] roarSounds; 
     
     [Header("Performance")]
     [Tooltip("Update interval for AI (lower = more responsive but more CPU intensive)")]
@@ -71,138 +63,64 @@ public class NemesisSceneSetup : MonoBehaviour
     [ContextMenu("Setup Scene")]
     public void SetupScene()
     {
-
-        
-        
         FindReferences();
-        
-        
         SetupNavigation();
-        
         
         if (autoSpawnNemesis)
         {
             SpawnNemesis();
         }
         
-        
         ConfigureNemesis();
-        
-        
         SetupAudio();
-        
-        
         ValidateSetup();
-        
-
     }
     
     void FindReferences()
     {
-        
         if (sceneRoot == null)
         {
             sceneRoot = GameObject.Find("DaVinciP1");
-            if (sceneRoot == null)
-            {
-
-                sceneRoot = gameObject;
-            }
+            if (sceneRoot == null) sceneRoot = gameObject;
         }
         
-        
-        if (player1 == null)
-        {
-            player1 = GameObject.FindGameObjectWithTag("Player1");
-            if (player1 == null)
-            {
-
-            }
-        }
-        
-        if (player2 == null)
-        {
-            player2 = GameObject.FindGameObjectWithTag("Player2");
-            if (player2 == null)
-            {
-
-            }
-        }
-        
-        
-        if (npc == null)
-        {
-            npc = GameObject.FindGameObjectWithTag("NPC");
-            if (npc == null)
-            {
-
-            }
-        }
-        
+        if (player1 == null) player1 = GameObject.FindGameObjectWithTag("Player1");
+        if (player2 == null) player2 = GameObject.FindGameObjectWithTag("Player2");
+        if (npc == null) npc = GameObject.FindGameObjectWithTag("NPC");
         
         if (navMeshSurface == null)
         {
-            
             GameObject[] allObjects = FindObjectsOfType<GameObject>();
             foreach (GameObject obj in allObjects)
             {
                 if (obj.GetComponent<NavMeshAgent>() != null || obj.name.ToLower().Contains("navmesh"))
                 {
                     navMeshSurface = obj;
-
                     break;
                 }
-            }
-            
-            if (navMeshSurface == null)
-            {
-
             }
         }
     }
     
     void SetupNavigation()
     {
-        
         UnityEngine.AI.NavMeshHit hit;
         bool hasNavMesh = UnityEngine.AI.NavMesh.SamplePosition(Vector3.zero, out hit, 1.0f, UnityEngine.AI.NavMesh.AllAreas);
-        
-        if (hasNavMesh)
-        {
-
-        }
-        else if (autoBakeNavMesh)
-        {
-
-
-        }
-        else
-        {
-
-        }
     }
     
     void SpawnNemesis()
     {
         if (nemesisPrefab != null)
         {
-            
             spawnedNemesis = Instantiate(nemesisPrefab, nemesisSpawnPosition, Quaternion.identity);
             spawnedNemesis.name = "Nemesis_DaVinciP1";
-
         }
         else
         {
-            
             spawnedNemesis = new GameObject("Nemesis_DaVinciP1");
             spawnedNemesis.transform.position = nemesisSpawnPosition;
-            
-            
             AddRequiredComponents(spawnedNemesis);
-            
-
         }
-        
         
         if (sceneRoot != null)
         {
@@ -212,18 +130,14 @@ public class NemesisSceneSetup : MonoBehaviour
     
     void AddRequiredComponents(GameObject nemesis)
     {
-        
         NavMeshAgent agent = nemesis.AddComponent<NavMeshAgent>();
         ConfigureNavMeshAgent(agent);
-        
         
         Animator animator = nemesis.AddComponent<Animator>();
         ConfigureAnimator(animator);
         
-        
         AudioSource audioSource = nemesis.AddComponent<AudioSource>();
         ConfigureAudioSource(audioSource);
-        
         
         nemesis.AddComponent<NemesisAI_Enhanced>();
         nemesis.AddComponent<NemesisSoundDetector>();
@@ -243,16 +157,10 @@ public class NemesisSceneSetup : MonoBehaviour
     
     void ConfigureAnimator(Animator animator)
     {
-        
         RuntimeAnimatorController horrorController = Resources.Load<RuntimeAnimatorController>("Horror");
         if (horrorController != null)
         {
             animator.runtimeAnimatorController = horrorController;
-
-        }
-        else
-        {
-
         }
     }
     
@@ -268,12 +176,7 @@ public class NemesisSceneSetup : MonoBehaviour
     
     void ConfigureNemesis()
     {
-        if (spawnedNemesis == null)
-        {
-
-            return;
-        }
-        
+        if (spawnedNemesis == null) return;
         
         nemesisAI = spawnedNemesis.GetComponent<NemesisAI_Enhanced>();
         if (nemesisAI != null)
@@ -282,7 +185,6 @@ public class NemesisSceneSetup : MonoBehaviour
         }
         else
         {
-            
             NemesisAI basicAI = spawnedNemesis.GetComponent<NemesisAI>();
             if (basicAI != null)
             {
@@ -290,50 +192,31 @@ public class NemesisSceneSetup : MonoBehaviour
             }
         }
         
-        
         soundDetector = spawnedNemesis.GetComponent<NemesisSoundDetector>();
         if (soundDetector != null)
         {
             ConfigureSoundDetector(soundDetector);
         }
-        else
-        {
-
-        }
     }
     
     void ConfigureNemesisAI(NemesisAI_Enhanced ai)
     {
-        
         ai.walkSpeed = 3.5f;
-        ai.chaseSpeed = 5.5f;
-        ai.sprintSpeed = 7f;
+        ai.chaseSpeed = 4.5f;
         ai.rotationSpeed = 10f;
         
-        
-        ai.visualDetectionRadius = 25f;
-        ai.soundDetectionRadius = 35f;
+        ai.detectionRadius = 40f;
         ai.attackRange = 2.5f;
         
-        
-        ai.searchDuration = 8f;
-        ai.memoryDuration = 15f;
+        ai.memoryDuration = 10f;
         ai.targetSwitchDelay = 2f;
-        
         
         ai.attackCooldown = 1.2f;
         ai.attackDamage = 30;
         ai.attackDuration = 0.9f;
         
-        
         ai.npcPriority = 3f;
         ai.playerPriority = 2f;
-        ai.soundPriority = 1f;
-        
-        ai.enableWander = enableWander;
-        ai.enableRoarOnDetection = enableRoar;
-        ai.onlyWalkAnimation = forceWalkOnly;
-        
         
         if (spawnedNemesis != null)
         {
@@ -345,20 +228,14 @@ public class NemesisSceneSetup : MonoBehaviour
                 detectionHelper.collisionForce = 10f;
                 detectionHelper.showDebugRays = true;
                 
-                
                 detectionHelper.obstacleLayerMask = LayerMask.GetMask("Default", "Walls", "Obstacles");
                 detectionHelper.targetLayerMask = LayerMask.GetMask("Default", "Player", "NPC");
             }
         }
         
-        
         ai.attackSounds = attackSounds;
         ai.detectionSounds = detectionSounds;
         ai.footstepSounds = footstepSounds;
-        ai.roarSounds = roarSounds;
-        
-
-
     }
     
     void ConfigureSoundDetector(NemesisSoundDetector detector)
@@ -367,85 +244,14 @@ public class NemesisSceneSetup : MonoBehaviour
         detector.soundAttenuationPerWall = 0.7f;
         detector.soundBlockerLayer = LayerMask.GetMask("Default", "Walls");
         detector.showDebugGizmos = false;
-        
-
     }
     
     void SetupAudio()
     {
-        
-
     }
     
     void ValidateSetup()
     {
-        bool setupValid = true;
-        
-        
-        if (spawnedNemesis == null)
-        {
-
-            setupValid = false;
-        }
-        else
-        {
-            if (nemesisAI == null)
-            {
-
-                setupValid = false;
-            }
-            
-            if (soundDetector == null)
-            {
-
-                setupValid = false;
-            }
-            
-            if (spawnedNemesis.GetComponent<NavMeshAgent>() == null)
-            {
-
-                setupValid = false;
-            }
-            
-            if (spawnedNemesis.GetComponent<Animator>() == null)
-            {
-
-                setupValid = false;
-            }
-        }
-        
-        
-        if (player1 == null)
-        {
-
-        }
-        
-        if (player2 == null)
-        {
-
-        }
-        
-        if (npc == null)
-        {
-
-        }
-        
-        
-        if (navMeshSurface == null)
-        {
-
-        }
-        
-        if (setupValid)
-        {
-
-
-
-        }
-        else
-        {
-
-        }
     }
     
     [ContextMenu("Test Nemesis Detection")]
@@ -453,22 +259,13 @@ public class NemesisSceneSetup : MonoBehaviour
     {
         if (nemesisAI != null)
         {
-            
             Vector3 testPosition = Vector3.zero;
             
-            if (player1 != null)
-                testPosition = player1.transform.position;
-            else if (player2 != null)
-                testPosition = player2.transform.position;
-            else if (npc != null)
-                testPosition = npc.transform.position;
+            if (player1 != null) testPosition = player1.transform.position;
+            else if (player2 != null) testPosition = player2.transform.position;
+            else if (npc != null) testPosition = npc.transform.position;
             
             nemesisAI.ForceAlert(testPosition);
-
-        }
-        else
-        {
-
         }
     }
     
@@ -479,17 +276,14 @@ public class NemesisSceneSetup : MonoBehaviour
         {
             spawnedNemesis.transform.position = nemesisSpawnPosition;
             spawnedNemesis.transform.rotation = Quaternion.identity;
-
         }
     }
     
     void OnDrawGizmosSelected()
     {
-        
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(nemesisSpawnPosition, 1f);
         Gizmos.DrawLine(nemesisSpawnPosition, nemesisSpawnPosition + Vector3.up * 2f);
-        
         
         if (sceneRoot != null)
         {
@@ -502,14 +296,11 @@ public class NemesisSceneSetup : MonoBehaviour
     Bounds CalculateSceneBounds()
     {
         Bounds bounds = new Bounds(sceneRoot.transform.position, Vector3.one);
-        
-        
         Renderer[] renderers = sceneRoot.GetComponentsInChildren<Renderer>();
         foreach (Renderer renderer in renderers)
         {
             bounds.Encapsulate(renderer.bounds);
         }
-        
         return bounds;
     }
 
@@ -576,7 +367,6 @@ public class NemesisSceneSetupEditor : Editor
         GUILayout.Space(10);
         GUILayout.Label("Validation Status", EditorStyles.boldLabel);
         
-        
         bool hasNemesis = setup.spawnedNemesis != null;
         bool hasAI = setup.nemesisAI != null;
         bool hasSoundDetector = setup.soundDetector != null;
@@ -591,7 +381,5 @@ public class NemesisSceneSetupEditor : Editor
         EditorGUILayout.LabelField("Player2 Found:", hasPlayer2 ? "✅ Yes" : "❌ No");
         EditorGUILayout.LabelField("NPC Found:", hasNPC ? "✅ Yes" : "❌ No");
     }
-    
-
 }
 #endif
