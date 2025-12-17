@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class NemesisDetectionHelper : MonoBehaviour
 {
@@ -29,6 +30,10 @@ public class NemesisDetectionHelper : MonoBehaviour
     private NemesisAI_Enhanced parentAIEnhanced;
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
+    
+    
+    private HashSet<Transform> lastDetectedTargets = new HashSet<Transform>();
+    private float detectionTimer = 0f;
     
     void Awake()
     {
@@ -246,5 +251,32 @@ public class NemesisDetectionHelper : MonoBehaviour
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(transform.position, parentAIEnhanced.detectionRadius);
         }
+    }
+    
+    
+    
+    
+    public void ResetDetectionState()
+    {
+        
+        lastDetectedTargets.Clear();
+        detectionTimer = 0f;
+        
+        
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+        
+        
+        var navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
+        if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
+        {
+            navAgent.ResetPath();
+            navAgent.velocity = Vector3.zero;
+        }
+        
+
     }
 }

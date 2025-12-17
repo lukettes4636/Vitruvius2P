@@ -22,6 +22,10 @@ public class NPCBehaviorManager : MonoBehaviour
     public float crouchSpeed = 2f;
     public float stoppingDistance = 2.0f;
 
+    [Header("Audio")]
+    [SerializeField] private AudioClip[] footstepSounds;
+    private AudioSource audioSource;
+
     [Header("Flags de Dialogo")]
     [Tooltip("Flag que activa el seguimiento al Player 1.")]
     public string flagFollowP1 = "NPC_Follows_P1";
@@ -47,6 +51,14 @@ public class NPCBehaviorManager : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
         animator = GetComponentInChildren<Animator>();
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.spatialBlend = 1f; 
+            audioSource.playOnAwake = false;
+        }
+        
         agent.stoppingDistance = stoppingDistance;
 
         
@@ -184,5 +196,19 @@ public class NPCBehaviorManager : MonoBehaviour
         animator.SetBool("IsCrouching", isCrouching);
         animator.SetBool("IsRunning", isRunning);
         animator.SetBool("IsFollowing", isFollowing);
+    }
+    
+    
+    public void PlayFootstepSound()
+    {
+        if (footstepSounds != null && footstepSounds.Length > 0 && audioSource != null)
+        {
+            
+            if (agent.velocity.magnitude > 0.1f)
+            {
+                AudioClip clip = footstepSounds[Random.Range(0, footstepSounds.Length)];
+                audioSource.PlayOneShot(clip, 0.3f);
+            }
+        }
     }
 }

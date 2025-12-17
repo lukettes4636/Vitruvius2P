@@ -47,6 +47,15 @@ public class NemesisSceneSetup : MonoBehaviour
     public AudioClip[] footstepSounds;
     public AudioClip[] roarSounds; 
     
+    [Tooltip("Looping music to play when chasing (plays only once on first detection)")]
+    public AudioClip chaseMusic;
+    
+    [Tooltip("Sound to play when breaking a wall")]
+    public AudioClip wallBreakSound;
+    
+    [Header("Wall Breaking")]
+    public LayerMask breakableWallLayer;
+    
     [Header("Performance")]
     [Tooltip("Update interval for AI (lower = more responsive but more CPU intensive)")]
     public float aiUpdateInterval = 0.1f;
@@ -110,6 +119,11 @@ public class NemesisSceneSetup : MonoBehaviour
     
     void SpawnNemesis()
     {
+        if (spawnedNemesis != null)
+        {
+            DestroyImmediate(spawnedNemesis);
+        }
+        
         if (nemesisPrefab != null)
         {
             spawnedNemesis = Instantiate(nemesisPrefab, nemesisSpawnPosition, Quaternion.identity);
@@ -125,6 +139,13 @@ public class NemesisSceneSetup : MonoBehaviour
         if (sceneRoot != null)
         {
             spawnedNemesis.transform.SetParent(sceneRoot.transform, true);
+        }
+        
+        
+        var nemesisAI = spawnedNemesis.GetComponent<NemesisAI_Enhanced>();
+        if (nemesisAI != null)
+        {
+            nemesisAI.ResetChaseMusic();
         }
     }
     
@@ -161,7 +182,55 @@ public class NemesisSceneSetup : MonoBehaviour
         if (horrorController != null)
         {
             animator.runtimeAnimatorController = horrorController;
+
         }
+        else
+        {
+
+
+            
+            
+            RuntimeAnimatorController[] controllers = Resources.FindObjectsOfTypeAll<RuntimeAnimatorController>();
+            if (controllers.Length > 0)
+            {
+                animator.runtimeAnimatorController = controllers[0];
+
+            }
+        }
+        
+        
+        if (animator.gameObject.GetComponent<NemesisAnimatorSetup>() == null)
+        {
+            animator.gameObject.AddComponent<NemesisAnimatorSetup>();
+        }
+        
+        
+        if (chaseMusic != null)
+        {
+            var chaseController = animator.gameObject.GetComponent<ChaseMusicController>();
+            if (chaseController == null)
+            {
+                chaseController = animator.gameObject.AddComponent<ChaseMusicController>();
+            }
+            chaseController.chaseMusicClip = chaseMusic;
+            chaseController.musicAudioSource = nemesisAI.musicAudioSource;
+            chaseController.loopMusic = true;
+            chaseController.musicVolume = 1f;
+            
+
+        }
+        
+        
+        var sceneReset = animator.gameObject.GetComponent<NemesisSceneReset>();
+        if (sceneReset == null)
+        {
+            sceneReset = animator.gameObject.AddComponent<NemesisSceneReset>();
+        }
+        sceneReset.resetOnSceneLoad = true;
+        sceneReset.resetChaseMusic = true;
+        sceneReset.respawnAtOriginalPosition = true;
+        
+
     }
     
     void ConfigureAudioSource(AudioSource audioSource)
@@ -215,9 +284,6 @@ public class NemesisSceneSetup : MonoBehaviour
         ai.attackDamage = 30;
         ai.attackDuration = 0.9f;
         
-        ai.npcPriority = 3f;
-        ai.playerPriority = 2f;
-        
         if (spawnedNemesis != null)
         {
             NemesisDetectionHelper detectionHelper = ai.GetComponent<NemesisDetectionHelper>();
@@ -236,6 +302,19 @@ public class NemesisSceneSetup : MonoBehaviour
         ai.attackSounds = attackSounds;
         ai.detectionSounds = detectionSounds;
         ai.footstepSounds = footstepSounds;
+        
+        ai.chaseMusic = chaseMusic;
+        ai.wallBreakSound = wallBreakSound;
+        
+        if (breakableWallLayer != 0)
+        {
+            ai.breakableWallLayer = breakableWallLayer;
+        }
+        else
+        {
+            
+            ai.breakableWallLayer = LayerMask.GetMask("Walls", "Breakable"); 
+        }
     }
     
     void ConfigureSoundDetector(NemesisSoundDetector detector)

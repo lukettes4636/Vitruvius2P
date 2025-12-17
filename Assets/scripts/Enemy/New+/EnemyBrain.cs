@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(EnemySenses), typeof(EnemyMotor), typeof(EnemyVisuals))]
@@ -22,10 +22,11 @@ public class EnemyBrain : MonoBehaviour
     public float attackRange = 2.2f;
     [Tooltip("Tiempo de espera despues de terminar un ataque")]
     public float attackCooldown = 0.5f;
+public int attackDamage = 25;
 
     [Header("Patrulla")]
     public Transform[] patrolPoints;
-    public float patrolWaitTime = 2f;
+    public float patrolWaitTime = 1f;
     private int patrolIndex = 0;
 
     [Header("Debug")]
@@ -150,6 +151,9 @@ public class EnemyBrain : MonoBehaviour
 
         if (senses.HasTargetOfInterest)
         {
+            
+            SelectClosestAliveTarget();
+
             motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, attackRange - 0.5f);
             visuals.UpdateAnimationState(false);
         }
@@ -234,11 +238,21 @@ public class EnemyBrain : MonoBehaviour
 
         visuals.TriggerAttack(3);
 
-        yield return new WaitUntil(() => visuals.AnimImpactReceived);
+        float impactTimer = 0f;
+        while (!visuals.AnimImpactReceived && impactTimer < 2.0f)
+        {
+            impactTimer += Time.deltaTime;
+            yield return null;
+        }
 
         TryDestroyWall(wall);
 
-        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
+        float finishTimer = 0f;
+        while (!visuals.AnimFinishedReceived && finishTimer < 1.5f)
+        {
+            finishTimer += Time.deltaTime;
+            yield return null;
+        }
 
         visuals.StopAttack();
         currentState = State.Chasing;
@@ -269,7 +283,9 @@ public class EnemyBrain : MonoBehaviour
         visuals.TriggerAttack(Random.Range(1, 4));
 
         float safetyTimer = 0f;
-        while (!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived && safetyTimer < 1.0f)
+        bool impactHappened = false;
+        
+        while (!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived && safetyTimer < 2.0f)
         {
             safetyTimer += Time.deltaTime;
             if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
@@ -279,13 +295,33 @@ public class EnemyBrain : MonoBehaviour
                 StartCoroutine(ReturnToPatrolRoutine());
                 yield break;
             }
+            if (visuals.AnimImpactReceived) impactHappened = true;
             yield return null;
         }
+        
+        
         visuals.EnableRightHand();
         visuals.EnableLeftHand();
         yield return new WaitForSeconds(0.2f);
         visuals.StopAttack();
-        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
+
+        
+        if ((pHealth != null && !pHealth.IsDead) || (nHealth != null && !nHealth.IsDead))
+        {
+            if (impactHappened || visuals.AnimImpactReceived || visuals.AnimFinishedReceived)
+            {
+                if (pHealth != null && !pHealth.IsDead) pHealth.TakeDamage(attackDamage);
+                if (nHealth != null && !nHealth.IsDead) nHealth.TakeDamage(attackDamage);
+            }
+        }
+        
+        
+        float finishTimer = 0f;
+        while (!visuals.AnimFinishedReceived && finishTimer < 1.5f)
+        {
+            finishTimer += Time.deltaTime;
+            yield return null;
+        }
 
         visuals.StopAttack();
         if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
@@ -296,6 +332,9 @@ public class EnemyBrain : MonoBehaviour
         }
         currentState = State.Chasing;
         yield return new WaitForSeconds(attackCooldown);
+
+        
+        SelectClosestAliveTarget();
     }
 
     IEnumerator ReturnToPatrolRoutine()
@@ -356,6 +395,49 @@ public class EnemyBrain : MonoBehaviour
         isInvestigatingObjectNoise = false;
     }
 
+    
+    void SelectClosestAliveTarget()
+    {
+        Transform best = null;
+        float bestDist = float.MaxValue;
+        bool isNPC = false;
+
+        void CheckList(Transform[] list, bool npcFlag)
+        {
+            if (list == null) return;
+            foreach (var t in list)
+            {
+                if (t == null) continue;
+                var ph = t.GetComponent<PlayerHealth>();
+                var nh = t.GetComponent<NPCHealth>();
+                if ((ph != null && ph.IsDead) || (nh != null && nh.IsDead)) continue;
+
+                float d = Vector3.Distance(transform.position, t.position);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = t;
+                    isNPC = npcFlag;
+                }
+            }
+        }
+
+        CheckList(senses.playerTargets, false);
+        CheckList(senses.npcTargets, true);
+
+        if (best != null)
+        {
+            if (isNPC)
+            {
+                senses.SetNPCTarget(best);
+            }
+            else
+            {
+                senses.SetPlayerTarget(best);
+            }
+        }
+    }
+
     IEnumerator PatrolWaitRoutine()
     {
         isWaitingAtPatrol = true;
@@ -381,7 +463,7 @@ public class EnemyBrain : MonoBehaviour
         }
     }
     void GoToNextPatrolPoint() { if (patrolPoints.Length == 0) return; patrolIndex = (patrolIndex + 1) % patrolPoints.Length; motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.1f); }
-    void TryDestroyWall(GameObject w) { if (w) { var s = w.GetComponent<Wall_Destruction>(); if (s) { s.Explode(w.transform.position, transform.forward); visuals.PlayWallBreakSound(); DialogueManager.ShowEnemyWallBreakDialogue(); } } }
+    void TryDestroyWall(GameObject w) { if (w) { var s = w.GetComponent<Wall_Destruction>(); if (s) { if (!w.activeSelf) w.SetActive(true); s.Explode(w.transform.position, transform.forward); visuals.PlayWallBreakSound(); DialogueManager.ShowEnemyWallBreakDialogue(); } } }
     void HandleDialogueFeedback() 
     { 
         if (!senses.HasTargetOfInterest) return; 

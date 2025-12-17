@@ -26,6 +26,15 @@ public class PauseController : MonoBehaviour
     [SerializeField] private Color normalColor = new Color(1f, 1f, 1f, 0.8f); 
     [SerializeField] private Color highlightedColor = new Color(1f, 0.2f, 0.2f, 0.3f); 
     [SerializeField] private float fadeTransitionSpeed = 3f;
+    [SerializeField] private float normalScale = 1f;
+    [SerializeField] private float highlightedScale = 1.1f;
+
+    [Header("Typography")]
+    [SerializeField] private TMPro.TMP_FontAsset mainMenuFont;
+
+    [Header("Button Background")]
+    [SerializeField] private Image continueButtonBackground;
+    [SerializeField] private Image quitButtonBackground;
 
     [Header("Blur Effect")]
     [SerializeField] private Volume blurVolume; 
@@ -50,15 +59,27 @@ public class PauseController : MonoBehaviour
 
     void Start()
     {
-
+        
+        EnsureGameNotPausedAtStart();
         
         SetupPauseUI();
         FindPlayers();
         SetupButtonListeners();
         HidePausePanel();
         SetupAudio();
+    }
+    
+    void EnsureGameNotPausedAtStart()
+    {
         
+        if (Mathf.Approximately(Time.timeScale, 0f))
+        {
 
+            Time.timeScale = 1f;
+        }
+        
+        
+        isPaused = false;
     }
 
     void SetupPauseUI()
@@ -119,6 +140,15 @@ public class PauseController : MonoBehaviour
         }
 
         
+        if (mainMenuFont != null)
+        {
+            if (pauseText != null)
+            {
+                pauseText.font = mainMenuFont;
+            }
+        }
+
+        
         if (continueButton == null)
         {
             GameObject continueBtn = GameObject.Find("ContinueButton");
@@ -147,7 +177,58 @@ public class PauseController : MonoBehaviour
 
             }
         }
+
         
+        if (continueButtonBackground == null && continueButton != null)
+        {
+            continueButtonBackground = continueButton.GetComponent<Image>();
+        }
+        if (quitButtonBackground == null && quitButton != null)
+        {
+            quitButtonBackground = quitButton.GetComponent<Image>();
+        }
+        
+        
+        if (mainMenuFont != null)
+        {
+            if (continueButton != null)
+            {
+                var txt = continueButton.GetComponentInChildren<TMPro.TextMeshProUGUI>(true);
+                if (txt != null) txt.font = mainMenuFont;
+            }
+
+            if (quitButton != null)
+            {
+                var txt = quitButton.GetComponentInChildren<TMPro.TextMeshProUGUI>(true);
+                if (txt != null) txt.font = mainMenuFont;
+            }
+        }
+
+        
+        Texture2D buttonGrungeTexture = Resources.Load<Texture2D>("Dark UI/Textures/Grunge/Background 3");
+        if (buttonGrungeTexture != null)
+        {
+            Sprite grungeSprite = Sprite.Create(
+                buttonGrungeTexture,
+                new Rect(0, 0, buttonGrungeTexture.width, buttonGrungeTexture.height),
+                new Vector2(0.5f, 0.5f));
+
+            if (continueButtonBackground != null)
+            {
+                continueButtonBackground.sprite = grungeSprite;
+                continueButtonBackground.type = Image.Type.Sliced;
+                continueButtonBackground.color = Color.white;
+            }
+
+            if (quitButtonBackground != null)
+            {
+                quitButtonBackground.sprite = grungeSprite;
+                quitButtonBackground.type = Image.Type.Sliced;
+                quitButtonBackground.color = Color.white;
+            }
+        }
+
+
         SetupBlurEffect();
 
     }
@@ -217,15 +298,33 @@ public class PauseController : MonoBehaviour
         
         if (playerInput.actions != null)
         {
-            var pauseAction = playerInput.actions["PauseToggle"];
+            
+            InputAction pauseAction = playerInput.actions["PauseToggle"];
+            
+            if (pauseAction == null) pauseAction = playerInput.actions["Pause"];
+            if (pauseAction == null) pauseAction = playerInput.actions["Start"];
+            if (pauseAction == null) pauseAction = playerInput.actions["Menu"];
+            if (pauseAction == null) pauseAction = playerInput.actions["Options"];
+            
             if (pauseAction != null)
             {
 
                 pauseAction.performed += OnPausePressed;
 
+
             }
             else
             {
+
+                
+                
+                string availableActions = "";
+                foreach (var action in playerInput.actions)
+                {
+                    availableActions += action.name + ", ";
+                }
+                
+
 
             }
         }
@@ -350,14 +449,25 @@ public class PauseController : MonoBehaviour
         if (index < 0 || index >= pauseButtons.Length) return;
         
         
+        int oldIndex = currentButtonIndex;
         previousButtonIndex = currentButtonIndex;
         currentButtonIndex = index;
         
         
         pauseButtons[index].Select();
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(pauseButtons[index].gameObject);
+        }
         
         
         ApplyButtonHighlight(pauseButtons[index], true);
+
+        
+        if (oldIndex != currentButtonIndex)
+        {
+            PlayHoverSound();
+        }
         
         
         if (previousButtonIndex >= 0 && previousButtonIndex < pauseButtons.Length && previousButtonIndex != index)
@@ -383,6 +493,13 @@ public class PauseController : MonoBehaviour
             colors.highlightedColor = normalColor;
         }
         button.colors = colors;
+
+        
+        RectTransform rt = button.transform as RectTransform;
+        if (rt != null)
+        {
+            rt.localScale = isHighlighted ? Vector3.one * highlightedScale : Vector3.one * normalScale;
+        }
     }
     
     System.Collections.IEnumerator FadeCanvasGroup(CanvasGroup canvasGroup, float startAlpha, float endAlpha, float duration)
@@ -423,6 +540,13 @@ public class PauseController : MonoBehaviour
                 colors.normalColor = normalColor;
                 colors.highlightedColor = normalColor;
                 pauseButtons[i].colors = colors;
+
+                    
+                    RectTransform rt = pauseButtons[i].transform as RectTransform;
+                    if (rt != null)
+                    {
+                        rt.localScale = Vector3.one * normalScale;
+                    }
             }
         }
         
@@ -578,6 +702,11 @@ public class PauseController : MonoBehaviour
             pauseText.gameObject.SetActive(false);
 
         }
+
+        if (EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
         
         canNavigate = false;
         RestoreAllButtons();
@@ -623,6 +752,16 @@ public class PauseController : MonoBehaviour
 
     void Update()
     {
+        
+        if (Application.isEditor || Debug.isDebugBuild)
+        {
+            if (Keyboard.current != null && (Keyboard.current.escapeKey.wasPressedThisFrame || Keyboard.current.pKey.wasPressedThisFrame))
+            {
+
+                TogglePause();
+            }
+        }
+
         if (!isPaused || !canNavigate || pauseButtons == null || pauseButtons.Length == 0) return;
         
         
@@ -631,27 +770,27 @@ public class PauseController : MonoBehaviour
         
         if (player1Input != null && player1Input.actions != null)
         {
-            var moveAction = player1Input.actions["Move"];
+            var moveAction = FindMoveAction(player1Input);
             if (moveAction != null)
             {
                 Vector2 moveInput = moveAction.ReadValue<Vector2>();
-                if (Mathf.Abs(moveInput.y) > 0.3f) verticalInput = moveInput.y;
+                if (Mathf.Abs(moveInput.y) > navigationThreshold) verticalInput = moveInput.y;
             }
         }
         
         
         if (verticalInput == 0f && player2Input != null && player2Input.actions != null)
         {
-            var moveAction = player2Input.actions["Move"];
+            var moveAction = FindMoveAction(player2Input);
             if (moveAction != null)
             {
                 Vector2 moveInput = moveAction.ReadValue<Vector2>();
-                if (Mathf.Abs(moveInput.y) > 0.3f) verticalInput = moveInput.y;
+                if (Mathf.Abs(moveInput.y) > navigationThreshold) verticalInput = moveInput.y;
             }
         }
         
         
-        if (Mathf.Abs(verticalInput) > 0.3f && Time.unscaledTime - lastNavigationTime > 0.15f)
+        if (Mathf.Abs(verticalInput) > navigationThreshold && Time.unscaledTime - lastNavigationTime > navigationCooldown)
         {
             if (verticalInput > 0f) 
             {
@@ -725,6 +864,31 @@ public class PauseController : MonoBehaviour
             PlayClickSound();
             pauseButtons[currentButtonIndex].onClick.Invoke();
         }
+    }
+
+    
+    InputAction FindMoveAction(PlayerInput input)
+    {
+        if (input == null || input.actions == null) return null;
+
+        
+        var move = input.actions["Move"];
+        if (move != null) return move;
+
+        
+        foreach (var action in input.actions)
+        {
+            if (action == null) continue;
+            if (action.expectedControlType != null && !action.expectedControlType.Contains("Vector2")) continue;
+
+            string nameLower = action.name.ToLowerInvariant();
+            if (nameLower.Contains("move") || nameLower.Contains("navigation") || nameLower.Contains("navigate"))
+            {
+                return action;
+            }
+        }
+
+        return null;
     }
 
     void OnDisable()

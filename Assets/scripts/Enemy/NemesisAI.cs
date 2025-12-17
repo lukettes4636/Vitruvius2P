@@ -1,8 +1,10 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 
-[RequireComponent(typeof(NavMeshAgent), typeof(Animator), typeof(NemesisDetectionHelper))]
+[RequireComponent(typeof(NavMeshAgent), typeof(Animator))]
 public class NemesisAI : MonoBehaviour
 {
     [Header("Nemesis AI Configuration")]
@@ -38,15 +40,12 @@ public class NemesisAI : MonoBehaviour
     private NavMeshAgent agent;
     private AudioSource audioSource;
     
-    
     private Transform currentTarget;
     private Vector3 lastKnownPosition;
     private float lastDetectionTime;
     private bool isAlerted;
     private bool isAttacking;
     private bool canAttack = true;
-    
-    private NemesisDetectionHelper detectionHelper;
     
     private enum TargetType { None, Player1, Player2, NPC }
     private TargetType currentTargetType;
@@ -56,54 +55,40 @@ public class NemesisAI : MonoBehaviour
     private readonly int attackHash = Animator.StringToHash("Attack");
     private readonly int detectionHash = Animator.StringToHash("Detected");
     
+    
+    private List<Transform> detectedTargets = new List<Transform>();
+    private float lastSoundCheckTime;
+    private float soundCheckInterval = 0.2f; 
+    
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
         animator = GetComponent<Animator>();
         audioSource = GetComponent<AudioSource>();
-        detectionHelper = GetComponent<NemesisDetectionHelper>();
         
         if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
         }
         
-        if (detectionHelper == null)
-        {
-            detectionHelper = gameObject.AddComponent<NemesisDetectionHelper>();
-        }
+        
+        if (attackSounds == null) attackSounds = new AudioClip[0];
+        if (detectionSounds == null) detectionSounds = new AudioClip[0];
+        if (footstepSounds == null) footstepSounds = new AudioClip[0];
         
         ConfigureNavMeshAgent();
     }
     
     void Start()
     {
-        
         isAlerted = false;
         currentTarget = null;
         currentTargetType = TargetType.None;
         
-        
-        animator.SetBool(walkHash, false);
-        animator.SetBool(attackHash, false);
-        
-        
-        if (detectionHelper != null)
+        if (animator != null)
         {
-            detectionHelper.obstacleLayerMask = soundBlockerLayer;
-            detectionHelper.targetLayerMask = detectionLayerMask;
-        }
-        
-        NemesisTester tester = GetComponent<NemesisTester>();
-        if (tester == null)
-        {
-            tester = gameObject.AddComponent<NemesisTester>();
-        }
-        
-        NemesisValidator validator = GetComponent<NemesisValidator>();
-        if (validator == null)
-        {
-            validator = gameObject.AddComponent<NemesisValidator>();
+            animator.SetBool(walkHash, false);
+            animator.SetBool(attackHash, false);
         }
     }
     
@@ -112,8 +97,7 @@ public class NemesisAI : MonoBehaviour
         if (isAttacking) return;
         
         
-        DetectTargets();
-        
+        DetectTargetsImproved();
         
         if (currentTarget != null)
         {
@@ -125,7 +109,7 @@ public class NemesisAI : MonoBehaviour
         }
         else
         {
-            SearchForTargets();
+            Patrol();
         }
         
         UpdateAnimation();
@@ -133,170 +117,289 @@ public class NemesisAI : MonoBehaviour
     
     void ConfigureNavMeshAgent()
     {
-        agent.speed = walkSpeed;
-        agent.angularSpeed = 360f;
-        agent.acceleration = 12f;
-        agent.stoppingDistance = attackRange - 0.3f;
-        agent.autoBraking = true;
-        agent.updateRotation = true;
+        if (agent != null)
+        {
+            agent.speed = walkSpeed;
+            agent.angularSpeed = 360f;
+            agent.acceleration = 12f;
+            agent.stoppingDistance = attackRange - 0.3f;
+            agent.autoBraking = true;
+            agent.updateRotation = true;
+        }
     }
     
-    void DetectTargets()
+    void DetectTargetsImproved()
     {
+        detectedTargets.Clear();
         Transform bestTarget = null;
         TargetType bestTargetType = TargetType.None;
-        float bestPriority = 0f;
-        float closestDistance = Mathf.Infinity;
+        float bestPriorityScore = 0f;
         
         
-        if (detectionHelper != null)
+        DetectPlayersImproved(ref bestTarget, ref bestTargetType, ref bestPriorityScore);
+        
+        
+        DetectNPCsImproved(ref bestTarget, ref bestTargetType, ref bestPriorityScore);
+        
+        
+        if (Time.time - lastSoundCheckTime > soundCheckInterval)
         {
-            
-            GameObject player1 = GameObject.FindGameObjectWithTag("Player1");
-            if (player1 != null && detectionHelper.CheckTargetDetection(player1.transform, detectionRadius, "Player1"))
-            {
-                var playerHealth = player1.GetComponent<PlayerHealth>();
-                if (playerHealth != null && !playerHealth.IsDead)
-                {
-                    float distance = Vector3.Distance(transform.position, player1.transform.position);
-                    float priority = playerPriority / distance;
-                    if (priority > bestPriority)
-                    {
-                        bestPriority = priority;
-                        bestTarget = player1.transform;
-                        bestTargetType = TargetType.Player1;
-                        closestDistance = distance;
-                    }
-                }
-            }
+            lastSoundCheckTime = Time.time;
+            DetectSoundsImproved(ref bestTarget, ref bestTargetType, ref bestPriorityScore);
         }
-        else
-        {
-            
-            GameObject player1 = GameObject.FindGameObjectWithTag("Player1");
-            if (player1 != null)
-            {
-                float distance = Vector3.Distance(transform.position, player1.transform.position);
-                if (distance <= detectionRadius && CanDetectTarget(player1.transform))
-                {
-                    var playerHealth = player1.GetComponent<PlayerHealth>();
-                    if (playerHealth != null && !playerHealth.IsDead)
-                    {
-                        float priority = playerPriority / distance;
-                        if (priority > bestPriority)
-                        {
-                            bestPriority = priority;
-                            bestTarget = player1.transform;
-                            bestTargetType = TargetType.Player1;
-                            closestDistance = distance;
-                        }
-                    }
-                }
-            }
-        }
+        
+        
+        UpdateCurrentTarget(bestTarget, bestTargetType);
+    }
+    
+    void DetectPlayersImproved(ref Transform bestTarget, ref TargetType bestTargetType, ref float bestPriorityScore)
+    {
+        
+        List<GameObject> players = new List<GameObject>();
+        
+        
+        GameObject player1 = GameObject.FindGameObjectWithTag("Player1");
+        if (player1 != null) players.Add(player1);
         
         
         GameObject player2 = GameObject.FindGameObjectWithTag("Player2");
-        if (player2 != null)
+        if (player2 != null) players.Add(player2);
+        
+        
+        GameObject[] allObjects = FindObjectsOfType<GameObject>();
+        foreach (GameObject obj in allObjects)
         {
-            if (detectionHelper != null)
+            if ((obj.name.Contains("Player") || obj.tag.Contains("Player")) && !players.Contains(obj))
             {
-                if (detectionHelper.CheckTargetDetection(player2.transform, detectionRadius, "Player2"))
-                {
-                    var playerHealth = player2.GetComponent<PlayerHealth>();
-                    if (playerHealth != null && !playerHealth.IsDead)
-                    {
-                        float distance = Vector3.Distance(transform.position, player2.transform.position);
-                        float priority = playerPriority / distance;
-                        if (priority > bestPriority)
-                        {
-                            bestPriority = priority;
-                            bestTarget = player2.transform;
-                            bestTargetType = TargetType.Player2;
-                            closestDistance = distance;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                
-                float distance = Vector3.Distance(transform.position, player2.transform.position);
-                if (distance <= detectionRadius && CanDetectTarget(player2.transform))
-                {
-                    var playerHealth = player2.GetComponent<PlayerHealth>();
-                    if (playerHealth != null && !playerHealth.IsDead)
-                    {
-                        float priority = playerPriority / distance;
-                        if (priority > bestPriority)
-                        {
-                            bestPriority = priority;
-                            bestTarget = player2.transform;
-                            bestTargetType = TargetType.Player2;
-                            closestDistance = distance;
-                        }
-                    }
-                }
+                players.Add(obj);
             }
         }
         
+        
+        foreach (GameObject player in players)
+        {
+            if (player == null) continue;
+            
+            
+            var playerHealth = player.GetComponent<PlayerHealth>();
+            if (playerHealth != null && playerHealth.IsDead) continue;
+            
+            
+            float distance = Vector3.Distance(transform.position, player.transform.position);
+            if (distance > detectionRadius) continue;
+            
+            
+            if (!HasLineOfSight(player.transform)) continue;
+            
+            
+            float priorityScore = CalculateTargetPriority(player.transform, playerPriority, distance);
+            
+            if (priorityScore > bestPriorityScore)
+            {
+                bestPriorityScore = priorityScore;
+                bestTarget = player.transform;
+                bestTargetType = player.tag == "Player1" ? TargetType.Player1 : TargetType.Player2;
+                detectedTargets.Add(player.transform);
+            }
+        }
+    }
+    
+    void DetectNPCsImproved(ref Transform bestTarget, ref TargetType bestTargetType, ref float bestPriorityScore)
+    {
+        
+        List<GameObject> npcs = new List<GameObject>();
         
         
         GameObject npc = GameObject.FindGameObjectWithTag("NPC");
-        if (npc != null)
+        if (npc != null) npcs.Add(npc);
+        
+        
+        GameObject[] allObjects = FindObjectsOfType<GameObject>();
+        foreach (GameObject obj in allObjects)
         {
-            if (detectionHelper != null)
+            if ((obj.name.Contains("NPC") || obj.tag.Contains("NPC")) && !npcs.Contains(obj))
             {
-                if (detectionHelper.CheckTargetDetection(npc.transform, detectionRadius, "NPC"))
-                {
-                    var npcHealth = npc.GetComponent<NPCHealth>();
-                    if (npcHealth != null && !npcHealth.IsDead)
-                    {
-                        float distance = Vector3.Distance(transform.position, npc.transform.position);
-                        float priority = npcPriority / distance;
-                    if (priority > bestPriority)
-                    {
-                        bestPriority = priority;
-                        bestTarget = npc.transform;
-                        bestTargetType = TargetType.NPC;
-                        closestDistance = distance;
-                    }
-                }
-            }
-            else
-            {
-                
-                float distance = Vector3.Distance(transform.position, npc.transform.position);
-                if (distance <= detectionRadius && CanDetectTarget(npc.transform))
-                {
-                    var npcHealth = npc.GetComponent<NPCHealth>();
-                    if (npcHealth != null && !npcHealth.IsDead)
-                    {
-                        float priority = npcPriority / distance;
-                        if (priority > bestPriority)
-                        {
-                            bestPriority = priority;
-                            bestTarget = npc.transform;
-                            bestTargetType = TargetType.NPC;
-                            closestDistance = distance;
-                        }
-                    }
-                }
+                npcs.Add(obj);
             }
         }
         
         
-        if (bestTarget == null)
+        foreach (GameObject npcObj in npcs)
         {
-            bestTarget = DetectSounds(out bestTargetType);
+            if (npcObj == null) continue;
+            
+            
+            var npcHealth = npcObj.GetComponent<NPCHealth>();
+            if (npcHealth != null && npcHealth.IsDead) continue;
+            
+            
+            float distance = Vector3.Distance(transform.position, npcObj.transform.position);
+            if (distance > detectionRadius) continue;
+            
+            
+            if (!HasLineOfSight(npcObj.transform)) continue;
+            
+            
+            float priorityScore = CalculateTargetPriority(npcObj.transform, npcPriority, distance);
+            
+            if (priorityScore > bestPriorityScore)
+            {
+                bestPriorityScore = priorityScore;
+                bestTarget = npcObj.transform;
+                bestTargetType = TargetType.NPC;
+                detectedTargets.Add(npcObj.transform);
+            }
+        }
+    }
+    
+    void DetectSoundsImproved(ref Transform bestTarget, ref TargetType bestTargetType, ref float bestPriorityScore)
+    {
+        
+        List<GameObject> soundSources = new List<GameObject>();
+        
+        
+        GameObject player1 = GameObject.FindGameObjectWithTag("Player1");
+        if (player1 != null) soundSources.Add(player1);
+        
+        GameObject player2 = GameObject.FindGameObjectWithTag("Player2");
+        if (player2 != null) soundSources.Add(player2);
+        
+        
+        GameObject npc = GameObject.FindGameObjectWithTag("NPC");
+        if (npc != null) soundSources.Add(npc);
+        
+        
+        PlayerNoiseEmitter[] allNoiseEmitters = FindObjectsOfType<PlayerNoiseEmitter>();
+        foreach (var emitter in allNoiseEmitters)
+        {
+            if (emitter != null && !soundSources.Contains(emitter.gameObject))
+            {
+                soundSources.Add(emitter.gameObject);
+            }
+        }
+        
+        NPCNoiseEmitter[] allNPCNoiseEmitters = FindObjectsOfType<NPCNoiseEmitter>();
+        foreach (var emitter in allNPCNoiseEmitters)
+        {
+            if (emitter != null && !soundSources.Contains(emitter.gameObject))
+            {
+                soundSources.Add(emitter.gameObject);
+            }
         }
         
         
-        if (bestTarget != null && bestTarget != currentTarget)
+        foreach (GameObject source in soundSources)
+        {
+            if (source == null) continue;
+            
+            
+            var playerNoise = source.GetComponent<PlayerNoiseEmitter>();
+            var npcNoise = source.GetComponent<NPCNoiseEmitter>();
+            
+            float noiseRadius = 0f;
+            if (playerNoise != null) noiseRadius = playerNoise.currentNoiseRadius;
+            if (npcNoise != null) noiseRadius = npcNoise.currentNoiseRadius;
+            
+            if (noiseRadius <= 0.1f) continue;
+            
+            
+            float distance = Vector3.Distance(transform.position, source.transform.position);
+            if (distance > soundDetectionRadius) continue;
+            
+            
+            if (IsSoundObstructed(source.transform)) continue;
+            
+            
+            float soundPriority = CalculateSoundPriority(noiseRadius, distance);
+            
+            
+            TargetType soundTargetType = TargetType.None;
+            if (source.CompareTag("Player1")) soundTargetType = TargetType.Player1;
+            else if (source.CompareTag("Player2")) soundTargetType = TargetType.Player2;
+            else if (source.CompareTag("NPC")) soundTargetType = TargetType.NPC;
+            
+            if (soundPriority > bestPriorityScore && soundTargetType != TargetType.None)
+            {
+                bestPriorityScore = soundPriority;
+                bestTarget = source.transform;
+                bestTargetType = soundTargetType;
+            }
+        }
+    }
+    
+    bool HasLineOfSight(Transform target)
+    {
+        Vector3 direction = (target.position - transform.position).normalized;
+        float distance = Vector3.Distance(transform.position, target.position);
+        
+        
+        Vector3 rayOrigin = transform.position + Vector3.up * 1.7f;
+        
+        
+        if (Physics.Raycast(rayOrigin, direction, distance, soundBlockerLayer))
+        {
+            return false; 
+        }
+        
+        return true;
+    }
+    
+    bool IsSoundObstructed(Transform soundSource)
+    {
+        Vector3 direction = (soundSource.position - transform.position).normalized;
+        float distance = Vector3.Distance(transform.position, soundSource.position);
+        
+        
+        if (Physics.Raycast(transform.position + Vector3.up, direction, distance, soundBlockerLayer))
+        {
+            return true; 
+        }
+        
+        return false;
+    }
+    
+    float CalculateTargetPriority(Transform target, float basePriority, float distance)
+    {
+        
+        float distanceFactor = 1f - (distance / detectionRadius);
+        float angleFactor = CalculateAngleFactor(target);
+        
+        return basePriority * distanceFactor * angleFactor * 10f;
+    }
+    
+    float CalculateAngleFactor(Transform target)
+    {
+        Vector3 directionToTarget = (target.position - transform.position).normalized;
+        Vector3 forward = transform.forward;
+        
+        float angle = Vector3.Angle(forward, directionToTarget);
+        
+        
+        if (angle < 45f) return 1.5f;
+        if (angle < 90f) return 1.2f;
+        if (angle < 135f) return 0.8f;
+        return 0.5f;
+    }
+    
+    float CalculateSoundPriority(float noiseRadius, float distance)
+    {
+        if (distance > soundDetectionRadius) return 0f;
+        
+        
+        float effectiveRadius = Mathf.Max(noiseRadius, 2f);
+        float distanceFactor = 1f - (distance / soundDetectionRadius);
+        float noiseFactor = Mathf.Clamp01(noiseRadius / 15f); 
+        
+        return (noiseFactor + distanceFactor) * 5f;
+    }
+    
+    void UpdateCurrentTarget(Transform newTarget, TargetType newTargetType)
+    {
+        if (newTarget != null && newTarget != currentTarget)
         {
             
-            currentTarget = bestTarget;
-            currentTargetType = bestTargetType;
+            currentTarget = newTarget;
+            currentTargetType = newTargetType;
             lastKnownPosition = currentTarget.position;
             lastDetectionTime = Time.time;
             isAlerted = true;
@@ -307,125 +410,16 @@ public class NemesisAI : MonoBehaviour
             
             
             agent.speed = chaseSpeed;
+            
+
         }
-        else if (bestTarget == null && currentTarget != null)
+        else if (newTarget == null && currentTarget != null)
         {
             
+
             currentTarget = null;
             currentTargetType = TargetType.None;
         }
-    }
-    
-    bool CanDetectTarget(Transform target)
-    {
-        if (detectionHelper != null)
-        {
-            return detectionHelper.CanDetectTarget(target, detectionRadius);
-        }
-        
-        
-        Vector3 direction = (target.position - transform.position).normalized;
-        float distance = Vector3.Distance(transform.position, target.position);
-        
-        if (Physics.Raycast(transform.position + Vector3.up, direction, distance, soundBlockerLayer))
-        {
-            return false; 
-        }
-        
-        return true;
-    }
-    
-    Transform DetectSounds(out TargetType detectedType)
-    {
-        detectedType = TargetType.None;
-        Transform soundSource = null;
-        float maxSoundStrength = 0f;
-        
-        
-        GameObject player1 = GameObject.FindGameObjectWithTag("Player1");
-        if (player1 != null)
-        {
-            var noiseEmitter = player1.GetComponent<PlayerNoiseEmitter>();
-            if (noiseEmitter != null && noiseEmitter.currentNoiseRadius > 0.1f)
-            {
-                float distance = Vector3.Distance(transform.position, player1.transform.position);
-                if (distance <= soundDetectionRadius)
-                {
-                    float soundStrength = CalculateSoundStrength(player1.transform, noiseEmitter.currentNoiseRadius, distance);
-                    if (soundStrength > maxSoundStrength)
-                    {
-                        maxSoundStrength = soundStrength;
-                        soundSource = player1.transform;
-                        detectedType = TargetType.Player1;
-                    }
-                }
-            }
-        }
-        
-        
-        GameObject player2 = GameObject.FindGameObjectWithTag("Player2");
-        if (player2 != null)
-        {
-            var noiseEmitter = player2.GetComponent<PlayerNoiseEmitter>();
-            if (noiseEmitter != null && noiseEmitter.currentNoiseRadius > 0.1f)
-            {
-                float distance = Vector3.Distance(transform.position, player2.transform.position);
-                if (distance <= soundDetectionRadius)
-                {
-                    float soundStrength = CalculateSoundStrength(player2.transform, noiseEmitter.currentNoiseRadius, distance);
-                    if (soundStrength > maxSoundStrength)
-                    {
-                        maxSoundStrength = soundStrength;
-                        soundSource = player2.transform;
-                        detectedType = TargetType.Player2;
-                    }
-                }
-            }
-        }
-        
-        
-        GameObject npc = GameObject.FindGameObjectWithTag("NPC");
-        if (npc != null)
-        {
-            var noiseEmitter = npc.GetComponent<NPCNoiseEmitter>();
-            if (noiseEmitter != null && noiseEmitter.currentNoiseRadius > 0.1f)
-            {
-                float distance = Vector3.Distance(transform.position, npc.transform.position);
-                if (distance <= soundDetectionRadius)
-                {
-                    float soundStrength = CalculateSoundStrength(npc.transform, noiseEmitter.currentNoiseRadius, distance);
-                    if (soundStrength > maxSoundStrength)
-                    {
-                        maxSoundStrength = soundStrength;
-                        soundSource = npc.transform;
-                        detectedType = TargetType.NPC;
-                    }
-                }
-            }
-        }
-        
-        return soundSource;
-    }
-    
-    float CalculateSoundStrength(Transform source, float noiseRadius, float distance)
-    {
-        if (distance > soundDetectionRadius) return 0f;
-        
-        
-        Vector3 direction = (source.position - transform.position).normalized;
-        if (Physics.Raycast(transform.position + Vector3.up, direction, distance, soundBlockerLayer))
-        {
-            return 0f; 
-        }
-        
-        
-        float effectiveRadius = Mathf.Max(noiseRadius, 2f);
-        if (distance <= effectiveRadius)
-        {
-            return Mathf.Clamp01(1f - (distance / effectiveRadius));
-        }
-        
-        return 0f;
     }
     
     void ChaseTarget()
@@ -436,12 +430,11 @@ public class NemesisAI : MonoBehaviour
         lastKnownPosition = currentTarget.position;
         lastDetectionTime = Time.time;
         
-        
         float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
         
         if (distanceToTarget <= attackRange && canAttack)
         {
-            StartCoroutine(AttackTarget());
+            StartCoroutine(AttackTargetImproved());
         }
         else if (distanceToTarget > attackRange)
         {
@@ -458,35 +451,7 @@ public class NemesisAI : MonoBehaviour
         }
     }
     
-    void SearchLastKnownPosition()
-    {
-        if (Vector3.Distance(transform.position, lastKnownPosition) > 2f)
-        {
-            agent.SetDestination(lastKnownPosition);
-        }
-        else
-        {
-            
-            isAlerted = false;
-            agent.speed = walkSpeed;
-        }
-    }
-    
-    void Patrol()
-    {
-        
-        agent.speed = walkSpeed;
-        
-        
-        if (agent.remainingDistance < 0.5f || !agent.hasPath)
-        {
-            
-            agent.ResetPath();
-        }
-    }
-}
-    
-    System.Collections.IEnumerator AttackTarget()
+    System.Collections.IEnumerator AttackTargetImproved()
     {
         isAttacking = true;
         canAttack = false;
@@ -512,15 +477,16 @@ public class NemesisAI : MonoBehaviour
         PlayAttackSound();
         
         
-        yield return new WaitForSeconds(attackDuration * 0.5f);
+        yield return new WaitForSeconds(attackDuration * 0.3f);
         
         
-        if (currentTarget != null && Vector3.Distance(transform.position, currentTarget.position) <= attackRange)
+        if (currentTarget != null && Vector3.Distance(transform.position, currentTarget.position) <= attackRange * 1.2f)
         {
-            DealDamageToTarget();
+            DealDamageToTargetImproved();
         }
         
-        yield return new WaitForSeconds(attackDuration * 0.5f);
+        
+        yield return new WaitForSeconds(attackDuration * 0.7f);
         
         
         animator.SetBool(attackHash, false);
@@ -531,10 +497,11 @@ public class NemesisAI : MonoBehaviour
         canAttack = true;
     }
     
-    void DealDamageToTarget()
+    void DealDamageToTargetImproved()
     {
         if (currentTarget == null) return;
         
+
         
         switch (currentTargetType)
         {
@@ -544,6 +511,11 @@ public class NemesisAI : MonoBehaviour
                 if (playerHealth != null && !playerHealth.IsDead)
                 {
                     playerHealth.TakeDamage(attackDamage);
+
+                }
+                else
+                {
+
                 }
                 break;
                 
@@ -552,31 +524,17 @@ public class NemesisAI : MonoBehaviour
                 if (npcHealth != null && !npcHealth.IsDead)
                 {
                     npcHealth.TakeDamage(attackDamage);
+
+                }
+                else
+                {
+
                 }
                 break;
-        }
-    }
-    
-    void UpdateAnimation()
-    {
-        
-        bool isMoving = agent.velocity.magnitude > 0.1f;
-        animator.SetBool(walkHash, isMoving && !isAttacking);
-    }
-    
-    void ChaseTarget()
-    {
-        if (currentTarget == null) return;
-        
-        agent.speed = chaseSpeed;
-        agent.SetDestination(currentTarget.position);
-        
-        
-        Vector3 direction = (currentTarget.position - transform.position).normalized;
-        if (direction != Vector3.zero)
-        {
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
+                
+            default:
+
+                break;
         }
     }
     
@@ -591,20 +549,19 @@ public class NemesisAI : MonoBehaviour
             
             isAlerted = false;
             agent.speed = walkSpeed;
+
         }
     }
     
-    void SearchForTargets()
+    void Patrol()
     {
-        
         agent.speed = walkSpeed;
         
         
-        
-        
-        if (Time.time % 2f < Time.deltaTime)
+        if (agent.remainingDistance < 0.5f || !agent.hasPath)
         {
-            Vector3 randomDirection = Random.insideUnitSphere * 10f;
+            
+            Vector3 randomDirection = Random.insideUnitSphere * 15f;
             randomDirection += transform.position;
             NavMeshHit hit;
             if (NavMesh.SamplePosition(randomDirection, out hit, 10f, NavMesh.AllAreas))
@@ -614,23 +571,34 @@ public class NemesisAI : MonoBehaviour
         }
     }
     
+    void UpdateAnimation()
+    {
+        
+        bool isMoving = agent.velocity.magnitude > 0.1f && !isAttacking;
+        animator.SetBool(walkHash, isMoving);
+        animator.SetBool(attackHash, isAttacking);
+    }
+    
     void PlayDetectionSound()
     {
-        if (detectionSounds.Length > 0)
+        if (detectionSounds != null && detectionSounds.Length > 0 && audioSource != null)
         {
             AudioClip clip = detectionSounds[Random.Range(0, detectionSounds.Length)];
-            audioSource.PlayOneShot(clip);
+            if (clip != null)
+                audioSource.PlayOneShot(clip);
         }
     }
     
     void PlayAttackSound()
     {
-        if (attackSounds.Length > 0)
+        if (attackSounds != null && attackSounds.Length > 0 && audioSource != null)
         {
             AudioClip clip = attackSounds[Random.Range(0, attackSounds.Length)];
-            audioSource.PlayOneShot(clip);
+            if (clip != null)
+                audioSource.PlayOneShot(clip);
         }
     }
+    
     
     public void SetAlerted(bool alerted)
     {
@@ -650,15 +618,16 @@ public class NemesisAI : MonoBehaviour
         return currentTarget;
     }
     
+    public bool IsAttacking()
+    {
+        return isAttacking;
+    }
+    
     public bool IsAlerted()
     {
         return isAlerted;
     }
     
-    public bool IsAttacking()
-    {
-        return isAttacking;
-    }
     
     void OnDrawGizmosSelected()
     {
@@ -668,24 +637,17 @@ public class NemesisAI : MonoBehaviour
         
         
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, soundDetectionRadius);
-        
-        
-        Gizmos.color = Color.magenta;
         Gizmos.DrawWireSphere(transform.position, attackRange);
+        
+        
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(transform.position, soundDetectionRadius);
         
         
         if (currentTarget != null)
         {
-            Gizmos.color = Color.red;
+            Gizmos.color = Color.green;
             Gizmos.DrawLine(transform.position, currentTarget.position);
-        }
-        
-        
-        if (isAlerted && currentTarget == null)
-        {
-            Gizmos.color = new Color(1f, 0.5f, 0f); 
-            Gizmos.DrawLine(transform.position, lastKnownPosition);
         }
     }
 }

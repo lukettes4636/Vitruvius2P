@@ -15,7 +15,9 @@ public class GameOverManager : MonoBehaviour
     [Tooltip("Intensity of the shake effect for the GAME OVER text.")]
     [SerializeField] private float shakeIntensity = 3f; 
     [Tooltip("Duration of the shake effect.")]
-    [SerializeField] private float shakeDuration = 1.5f; 
+    [SerializeField] private float shakeDuration = 1.5f;
+    [Tooltip("Whether to automatically pause the game when Game Over is triggered.")]
+    [SerializeField] private bool autoPauseOnGameOver = false; 
 
     [Header("References")]
     [Tooltip("The NPC that must survive. If null, will try to auto-find by tag.")]
@@ -36,6 +38,10 @@ public class GameOverManager : MonoBehaviour
     private TextMeshProUGUI gameOverText;
     private Button continueButton;
     private Button quitButton;
+    
+    
+    private float originalTimeScale = 1f;
+    private bool wasGamePaused = false;
 
     public static GameOverManager Instance { get; private set; }
 
@@ -197,7 +203,191 @@ public class GameOverManager : MonoBehaviour
     public void TriggerGameOver()
     {
         gameOverTriggered = true;
+        
+        
+        if (autoPauseOnGameOver)
+        {
+            PauseGame();
+        }
+        
         StartCoroutine(GameOverSequence());
+    }
+    
+    
+    
+    
+    private void PauseGame()
+    {
+        originalTimeScale = Time.timeScale;
+        wasGamePaused = Mathf.Approximately(Time.timeScale, 0f);
+        
+        if (!wasGamePaused)
+        {
+            Time.timeScale = 0f;
+
+        }
+        
+        
+        DisableAllPlayerInput();
+        
+        
+        DisableAllEnemyAI();
+        
+        
+        PauseGameAudio();
+    }
+    
+    
+    
+    
+    public void ManualPause()
+    {
+        PauseGame();
+    }
+    
+    public void ManualResume()
+    {
+        ResumeGame();
+    }
+    
+    private void ResumeGame()
+    {
+        if (!wasGamePaused)
+        {
+            Time.timeScale = originalTimeScale;
+
+        }
+        
+        
+        EnableAllPlayerInput();
+        
+        
+        EnableAllEnemyAI();
+        
+        
+        ResumeGameAudio();
+    }
+    
+    
+    
+    
+    private void DisableAllPlayerInput()
+    {
+        var playerInputs = FindObjectsOfType<UnityEngine.InputSystem.PlayerInput>();
+        foreach (var input in playerInputs)
+        {
+            input.enabled = false;
+        }
+        
+        
+        var playerControllers = FindObjectsOfType<PlayerControllerBase>();
+        foreach (var controller in playerControllers)
+        {
+            controller.enabled = false;
+        }
+        
+
+    }
+    
+    
+    
+    
+    private void EnableAllPlayerInput()
+    {
+        var playerInputs = FindObjectsOfType<UnityEngine.InputSystem.PlayerInput>();
+        foreach (var input in playerInputs)
+        {
+            input.enabled = true;
+        }
+        
+        var playerControllers = FindObjectsOfType<PlayerControllerBase>();
+        foreach (var controller in playerControllers)
+        {
+            controller.enabled = true;
+        }
+        
+
+    }
+    
+    
+    
+    
+    private void DisableAllEnemyAI()
+    {
+        var enemyAIs = FindObjectsOfType<NemesisAI_Enhanced>();
+        foreach (var enemy in enemyAIs)
+        {
+            enemy.enabled = false;
+        }
+        
+        var navMeshAgents = FindObjectsOfType<UnityEngine.AI.NavMeshAgent>();
+        foreach (var agent in navMeshAgents)
+        {
+            if (agent.gameObject.CompareTag("Enemy"))
+            {
+                agent.enabled = false;
+            }
+        }
+        
+
+    }
+    
+    
+    
+    
+    private void EnableAllEnemyAI()
+    {
+        var enemyAIs = FindObjectsOfType<NemesisAI_Enhanced>();
+        foreach (var enemy in enemyAIs)
+        {
+            enemy.enabled = true;
+        }
+        
+        var navMeshAgents = FindObjectsOfType<UnityEngine.AI.NavMeshAgent>();
+        foreach (var agent in navMeshAgents)
+        {
+            if (agent.gameObject.CompareTag("Enemy"))
+            {
+                agent.enabled = true;
+            }
+        }
+        
+
+    }
+    
+    
+    
+    
+    private void PauseGameAudio()
+    {
+        var audioSources = FindObjectsOfType<AudioSource>();
+        foreach (var audioSource in audioSources)
+        {
+            
+            if (audioSource.GetComponentInParent<Canvas>() == null)
+            {
+                audioSource.Pause();
+            }
+        }
+        
+
+    }
+    
+    
+    
+    
+    private void ResumeGameAudio()
+    {
+        var audioSources = FindObjectsOfType<AudioSource>();
+        foreach (var audioSource in audioSources)
+        {
+            if (audioSource.GetComponentInParent<Canvas>() == null)
+            {
+                audioSource.UnPause();
+            }
+        }
+        
+
     }
 
     public void AssignNPCToProtect(NPCHealth npc)
@@ -484,8 +674,8 @@ public class GameOverManager : MonoBehaviour
         gameOverText.color = new Color(0.85f, 0.85f, 0.85f, 1f); 
 
         
-        GameObject buttonContainer = new GameObject("ButtonContainer");
-        buttonContainer.transform.SetParent(canvasGO.transform);
+        GameObject buttonContainer = new GameObject("ButtonContainer", typeof(RectTransform));
+        buttonContainer.transform.SetParent(canvasGO.transform, false);
 
         RectTransform containerRect = buttonContainer.GetComponent<RectTransform>();
         containerRect.anchorMin = new Vector2(0.5f, 0.3f);
@@ -499,7 +689,25 @@ public class GameOverManager : MonoBehaviour
         continueButton = continueButtonGO.AddComponent<Button>();
         
         Image continueImage = continueButtonGO.AddComponent<Image>();
-        continueImage.color = new Color(0.2f, 0.8f, 0.2f, 1f); 
+
+        
+        Texture2D buttonGrungeTexture = Resources.Load<Texture2D>("Dark UI/Textures/Grunge/Background 3");
+        if (buttonGrungeTexture != null)
+        {
+            
+            Sprite grungeSprite = Sprite.Create(
+                buttonGrungeTexture,
+                new Rect(0, 0, buttonGrungeTexture.width, buttonGrungeTexture.height),
+                new Vector2(0.5f, 0.5f));
+            continueImage.sprite = grungeSprite;
+            continueImage.type = Image.Type.Sliced;
+            continueImage.color = Color.white;
+        }
+        else
+        {
+            continueImage.color = new Color(0.9f, 0.9f, 0.9f, 1f);
+        }
+
         continueButton.targetGraphic = continueImage;
 
         RectTransform continueRect = continueButtonGO.GetComponent<RectTransform>();
@@ -529,7 +737,23 @@ public class GameOverManager : MonoBehaviour
         quitButton = quitButtonGO.AddComponent<Button>();
         
         Image quitImage = quitButtonGO.AddComponent<Image>();
-        quitImage.color = new Color(0.8f, 0.2f, 0.2f, 1f); 
+
+        
+        if (buttonGrungeTexture != null)
+        {
+            Sprite grungeSpriteQuit = Sprite.Create(
+                buttonGrungeTexture,
+                new Rect(0, 0, buttonGrungeTexture.width, buttonGrungeTexture.height),
+                new Vector2(0.5f, 0.5f));
+            quitImage.sprite = grungeSpriteQuit;
+            quitImage.type = Image.Type.Sliced;
+            quitImage.color = Color.white;
+        }
+        else
+        {
+            quitImage.color = new Color(0.9f, 0.9f, 0.9f, 1f);
+        }
+
         quitButton.targetGraphic = quitImage;
 
         RectTransform quitRect = quitButtonGO.GetComponent<RectTransform>();
@@ -668,23 +892,50 @@ public class GameOverManager : MonoBehaviour
 
     private void OnContinueButtonClicked()
     {
+
         
         HideGameOverUI();
         
         
-        RespawnAllPlayers();
+        ResumeGame();
         
         
-        StartCoroutine(FadeInAfterUI());
+        ResetGameOverState();
+        
+        
+        StartCoroutine(RestartLevel());
+    }
+    
+    
+    
+    
+    private IEnumerator RestartLevel()
+    {
+        
+        string currentSceneName = SceneManager.GetActiveScene().name;
+        
+
+        
+        
+        yield return StartCoroutine(FadeToBlack());
+        
+        
+        yield return new WaitForSeconds(0.5f);
+        
+        
+        SceneManager.LoadScene(currentSceneName);
+        
+
     }
 
     private void OnQuitButtonClicked()
     {
         
-
-        
-        
-        SceneManager.LoadScene(0);
+        #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+        #else
+            Application.Quit();
+        #endif
     }
 
     private IEnumerator FadeInAfterUI()

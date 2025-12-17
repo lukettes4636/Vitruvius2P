@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
 using System.Collections.Generic;
@@ -28,21 +28,26 @@ public class NemesisAI_Enhanced : MonoBehaviour
     public float attackDuration = 0.9f;
     public float attackRangeMultiplier = 1.2f;
     
-    [Header("Targeting Priority")]
-    public float npcPriority = 3f;
-    public float playerPriority = 2f;
-    
     [Header("Audio")]
     public AudioClip[] attackSounds;
     public AudioClip[] detectionSounds;
     public AudioClip[] footstepSounds;
+    public AudioClip chaseMusic;
+    public AudioClip wallBreakSound;
+    public ChaseMusicController chaseMusicController;
+    
+    [Header("Wall Breaking")]
+    public LayerMask breakableWallLayer;
+    public float wallBreakDistance = 2.0f;
     
     [Header("References")]
     public Animator animator;
+    public NemesisDetectionHelper detectionHelper;
     private NavMeshAgent agent;
     private AudioSource audioSource;
+    public AudioSource musicAudioSource;
     
-    public enum NemesisState { Idle, Chase, Attack, Search }
+    public enum NemesisState { Idle, Chase, Attack, Search, BreakWall }
     private NemesisState currentState = NemesisState.Idle;
     
     private Transform currentTarget;
@@ -50,27 +55,30 @@ public class NemesisAI_Enhanced : MonoBehaviour
     private Vector3 lastKnownPosition;
     private float lastDetectionTime;
     private float lastTargetSwitchTime;
-    
+    private bool hasTriggeredChaseMusic = false;
     
     private List<Transform> potentialTargets = new List<Transform>();
     private float targetScanTimer;
+    private float searchTimer;
+    
     
     private readonly int walkHash = Animator.StringToHash("Walk");
     private readonly int attackHash = Animator.StringToHash("Attack");
     private readonly int detectionHash = Animator.StringToHash("Detected");
     
+    
+    private HashSet<int> validParams = new HashSet<int>();
+    
     private class TargetInfo
     {
         public Transform transform;
         public string tag;
-        public float priority;
         public float distance;
         
-        public TargetInfo(Transform t, string tag, float p, float d)
+        public TargetInfo(Transform t, string tag, float d)
         {
             transform = t;
             this.tag = tag;
-            priority = p;
             distance = d;
         }
     }
@@ -79,6 +87,8 @@ public class NemesisAI_Enhanced : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
         animator = GetComponent<Animator>();
+        detectionHelper = GetComponent<NemesisDetectionHelper>();
+        chaseMusicController = GetComponent<ChaseMusicController>();
         audioSource = GetComponent<AudioSource>();
         
         if (audioSource == null)
@@ -86,12 +96,56 @@ public class NemesisAI_Enhanced : MonoBehaviour
             audioSource = gameObject.AddComponent<AudioSource>();
         }
         
-        ConfigureNavMeshAgent();
         
+        musicAudioSource = gameObject.AddComponent<AudioSource>();
+        musicAudioSource.loop = true;
+        musicAudioSource.spatialBlend = 0f; 
+        musicAudioSource.volume = 1f;
+        musicAudioSource.playOnAwake = false;
+        
+        ConfigureNavMeshAgent();
         
         if (obstacleLayerMask == 0)
         {
             obstacleLayerMask = LayerMask.GetMask("Default", "Walls", "Obstacles");
+        }
+        
+        CacheAnimatorParameters();
+        
+        
+        if (chaseMusicController != null && chaseMusic != null)
+        {
+            chaseMusicController.chaseMusicClip = chaseMusic;
+            chaseMusicController.musicAudioSource = musicAudioSource;
+            chaseMusicController.loopMusic = true;
+            chaseMusicController.musicVolume = 1f;
+        }
+    }
+    
+    void CacheAnimatorParameters()
+    {
+        if (animator == null) return;
+        if (animator.runtimeAnimatorController == null) return;
+        
+        foreach (var param in animator.parameters)
+        {
+            validParams.Add(param.nameHash);
+        }
+    }
+    
+    void SetAnimBool(int hash, bool value)
+    {
+        if (animator != null && validParams.Contains(hash))
+        {
+            animator.SetBool(hash, value);
+        }
+    }
+    
+    void SetAnimTrigger(int hash)
+    {
+        if (animator != null && validParams.Contains(hash))
+        {
+            animator.SetTrigger(hash);
         }
     }
     
@@ -99,14 +153,10 @@ public class NemesisAI_Enhanced : MonoBehaviour
     {
         currentState = NemesisState.Idle;
         FindTargets();
-        
-        
-        animator.SetBool("Run", false);
     }
     
     void Update()
     {
-        
         if (Time.time > targetScanTimer + 3f)
         {
             FindTargets();
@@ -114,6 +164,7 @@ public class NemesisAI_Enhanced : MonoBehaviour
         }
         
         UpdateAIState();
+        CheckForWalls();
         ExecuteCurrentState();
         UpdateAnimation();
     }
@@ -144,21 +195,36 @@ public class NemesisAI_Enhanced : MonoBehaviour
     
     void UpdateAIState()
     {
-        if (currentState == NemesisState.Attack) return;
+        if (currentState == NemesisState.Attack || currentState == NemesisState.BreakWall) return;
         
         TargetInfo bestTarget = ScanForTargets();
         
         if (bestTarget != null)
         {
-            
             if (currentState != NemesisState.Chase)
             {
                 
+                bool isPlayerTarget = bestTarget.tag == "Player1" || bestTarget.tag == "Player2";
+                if (!hasTriggeredChaseMusic && chaseMusic != null && isPlayerTarget)
+                {
+                    
+                    if (chaseMusicController != null)
+                    {
+                        chaseMusicController.PlayChaseMusic();
+                    }
+                    else
+                    {
+                        musicAudioSource.clip = chaseMusic;
+                        musicAudioSource.Play();
+                    }
+                    hasTriggeredChaseMusic = true;
+
+                }
+                
                 PlayDetectionSound();
-                animator.SetTrigger(detectionHash);
+                SetAnimTrigger(detectionHash);
                 currentState = NemesisState.Chase;
             }
-            
             
             if (currentTarget != bestTarget.transform)
             {
@@ -171,7 +237,6 @@ public class NemesisAI_Enhanced : MonoBehaviour
             }
             else
             {
-                
                 currentTargetInfo = bestTarget;
             }
             
@@ -180,7 +245,6 @@ public class NemesisAI_Enhanced : MonoBehaviour
         }
         else
         {
-            
             if (currentState == NemesisState.Chase)
             {
                 if (Time.time - lastDetectionTime < memoryDuration)
@@ -205,33 +269,24 @@ public class NemesisAI_Enhanced : MonoBehaviour
     TargetInfo ScanForTargets()
     {
         TargetInfo best = null;
-        float maxScore = -1f;
+        float minDistance = float.MaxValue;
         
         foreach (var t in potentialTargets)
         {
             if (t == null) continue;
-            
             
             if (!IsTargetAlive(t)) continue;
             
             float dist = Vector3.Distance(transform.position, t.position);
             if (dist > detectionRadius) continue;
             
-            
             if (!HasLineOfSight(t)) continue;
             
             
-            float priority = 1f;
-            if (t.CompareTag("NPC")) priority = npcPriority;
-            else if (t.CompareTag("Player1") || t.CompareTag("Player2")) priority = playerPriority;
-            
-            
-            float score = priority * (1f - (dist / detectionRadius));
-            
-            if (score > maxScore)
+            if (dist < minDistance)
             {
-                maxScore = score;
-                best = new TargetInfo(t, t.tag, priority, dist);
+                minDistance = dist;
+                best = new TargetInfo(t, t.tag, dist);
             }
         }
         return best;
@@ -259,10 +314,8 @@ public class NemesisAI_Enhanced : MonoBehaviour
         Vector3 dir = (end - start).normalized;
         float dist = Vector3.Distance(start, end);
         
-        
         if (Physics.Raycast(start, dir, out RaycastHit hit, dist, obstacleLayerMask))
         {
-            
             if (hit.transform != t && !hit.transform.IsChildOf(t))
             {
                 return false;
@@ -271,13 +324,48 @@ public class NemesisAI_Enhanced : MonoBehaviour
         return true;
     }
     
+    void CheckForWalls()
+    {
+        if (currentState == NemesisState.Attack || currentState == NemesisState.BreakWall) return;
+        
+        
+        if (Physics.Raycast(transform.position + Vector3.up, transform.forward, out RaycastHit hit, wallBreakDistance, breakableWallLayer))
+        {
+            StartCoroutine(BreakWallSequence(hit.collider.gameObject));
+        }
+    }
+    
+    IEnumerator BreakWallSequence(GameObject wall)
+    {
+        currentState = NemesisState.BreakWall;
+        agent.ResetPath();
+        
+        SetAnimBool(attackHash, true);
+        
+        yield return new WaitForSeconds(attackDuration * 0.4f);
+        
+        if (wall != null)
+        {
+            if (wallBreakSound != null) audioSource.PlayOneShot(wallBreakSound);
+            
+            
+            Destroy(wall); 
+        }
+        
+        yield return new WaitForSeconds(attackDuration * 0.6f);
+        
+        SetAnimBool(attackHash, false);
+        yield return new WaitForSeconds(0.5f);
+        
+        currentState = NemesisState.Chase;
+    }
+
     void ExecuteCurrentState()
     {
         switch (currentState)
         {
             case NemesisState.Idle:
                 agent.ResetPath();
-                
                 break;
                 
             case NemesisState.Chase:
@@ -305,7 +393,7 @@ public class NemesisAI_Enhanced : MonoBehaviour
                 break;
                 
             case NemesisState.Attack:
-                
+            case NemesisState.BreakWall:
                 break;
         }
     }
@@ -314,7 +402,6 @@ public class NemesisAI_Enhanced : MonoBehaviour
     {
         agent.ResetPath();
         
-        
         if (currentTarget != null)
         {
             Vector3 dir = (currentTarget.position - transform.position).normalized;
@@ -322,11 +409,10 @@ public class NemesisAI_Enhanced : MonoBehaviour
             if (dir != Vector3.zero) transform.rotation = Quaternion.LookRotation(dir);
         }
         
-        animator.SetBool(attackHash, true);
+        SetAnimBool(attackHash, true);
         PlayAttackSound();
         
         yield return new WaitForSeconds(attackDuration * 0.4f);
-        
         
         if (currentTarget != null && Vector3.Distance(transform.position, currentTarget.position) <= attackRange * attackRangeMultiplier)
         {
@@ -335,7 +421,7 @@ public class NemesisAI_Enhanced : MonoBehaviour
         
         yield return new WaitForSeconds(attackDuration * 0.6f);
         
-        animator.SetBool(attackHash, false);
+        SetAnimBool(attackHash, false);
         yield return new WaitForSeconds(attackCooldown);
         
         currentState = NemesisState.Chase;
@@ -360,27 +446,33 @@ public class NemesisAI_Enhanced : MonoBehaviour
     void UpdateAnimation()
     {
         bool moving = agent.velocity.magnitude > 0.1f;
-        
-        animator.SetBool(walkHash, moving);
+        SetAnimBool(walkHash, moving);
     }
     
     void PlayDetectionSound()
     {
-        if (detectionSounds != null && detectionSounds.Length > 0)
+        if (detectionSounds != null && detectionSounds.Length > 0 && audioSource != null)
         {
-            audioSource.PlayOneShot(detectionSounds[Random.Range(0, detectionSounds.Length)]);
+            AudioClip clip = detectionSounds[Random.Range(0, detectionSounds.Length)];
+            if (clip != null)
+            {
+                audioSource.PlayOneShot(clip);
+            }
         }
     }
     
     void PlayAttackSound()
     {
-        if (attackSounds != null && attackSounds.Length > 0)
+        if (attackSounds != null && attackSounds.Length > 0 && audioSource != null)
         {
-            audioSource.PlayOneShot(attackSounds[Random.Range(0, attackSounds.Length)]);
+            AudioClip clip = attackSounds[Random.Range(0, attackSounds.Length)];
+            if (clip != null)
+            {
+                audioSource.PlayOneShot(clip);
+            }
         }
     }
-    
-    
+
     public NemesisState GetCurrentState() => currentState;
     public Transform GetCurrentTarget() => currentTarget;
     public void ForceAlert(Vector3 pos)
@@ -388,6 +480,79 @@ public class NemesisAI_Enhanced : MonoBehaviour
         currentState = NemesisState.Search;
         lastKnownPosition = pos;
         lastDetectionTime = Time.time;
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    public void ResetChaseMusic()
+    {
+        hasTriggeredChaseMusic = false;
+        
+        
+        if (chaseMusicController != null)
+        {
+            chaseMusicController.ResetChaseMusic();
+        }
+        else if (musicAudioSource != null && musicAudioSource.isPlaying)
+        {
+            musicAudioSource.Stop();
+        }
+        
+
+    }
+    
+    
+    
+    
+    public void ResetAIState()
+    {
+        
+        currentState = NemesisState.Idle;
+        currentTarget = null;
+        lastKnownPosition = Vector3.zero;
+        searchTimer = 0f;
+        attackCooldown = 0f;
+        
+        
+        hasTriggeredChaseMusic = false;
+        
+        
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
+        {
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
+            agent.enabled = true;
+        }
+        
+        
+        if (detectionHelper != null)
+        {
+            detectionHelper.ResetDetectionState();
+        }
+        
+        
+        if (animator != null)
+        {
+            animator.Rebind();
+            animator.Update(0f);
+        }
+        
+        
+        if (audioSource != null)
+        {
+            audioSource.Stop();
+        }
+        
+        
+        ResetChaseMusic();
+        
+
     }
     
     void OnDrawGizmosSelected()

@@ -59,67 +59,73 @@ public class EnemySenses : MonoBehaviour
 
     private void ProcessAudioDetection()
     {
-        Transform loudestTarget = null;
+        Transform bestTarget = null;
+        float minDistance = float.MaxValue;
         float maxAudioStrength = 0f;
         bool isTargetNPC = false;
 
         
+        void CheckTarget(Transform target, float noiseRadius, bool isNPC)
+        {
+            if (target == null) return;
+            
+            float dist = Vector3.Distance(transform.position, target.position);
+            
+            
+            float strength = CalculateAudioStrength(target, noiseRadius, dist);
+            
+            if (strength > detectionThreshold)
+            {
+                
+                if (strength > maxAudioStrength) maxAudioStrength = strength;
+
+                
+                if (dist < minDistance)
+                {
+                    minDistance = dist;
+                    bestTarget = target;
+                    isTargetNPC = isNPC;
+                }
+            }
+        }
+
         foreach (Transform player in playerTargets)
         {
             if (player == null) continue;
             var health = player.GetComponent<PlayerHealth>();
             if (health != null && health.IsDead) continue;
-
-            float dist = Vector3.Distance(transform.position, player.position);
-            var noiseEmitter = player.GetComponent<PlayerNoiseEmitter>();
-
-            if (noiseEmitter == null || noiseEmitter.currentNoiseRadius < 0.1f) continue;
-            float strength = CalculateAudioStrength(player, noiseEmitter.currentNoiseRadius, dist);
-
-            if (strength > maxAudioStrength)
-            {
-                maxAudioStrength = strength;
-                loudestTarget = player;
-                isTargetNPC = false;
-            }
+            var noise = player.GetComponent<PlayerNoiseEmitter>();
+            if (noise == null || noise.currentNoiseRadius < 0.1f) continue;
+            
+            CheckTarget(player, noise.currentNoiseRadius, false);
         }
 
-        
         foreach (Transform npc in npcTargets)
         {
             if (npc == null) continue;
-            var npcHealth = npc.GetComponent<NPCHealth>();
-            if (npcHealth != null && npcHealth.IsDead) continue;
+            var health = npc.GetComponent<NPCHealth>();
+            if (health != null && health.IsDead) continue;
+            var noise = npc.GetComponent<NPCNoiseEmitter>();
+            if (noise == null || noise.currentNoiseRadius < 0.1f) continue;
 
-            float dist = Vector3.Distance(transform.position, npc.position);
-            var npcNoiseEmitter = npc.GetComponent<NPCNoiseEmitter>();
-
-            if (npcNoiseEmitter == null || npcNoiseEmitter.currentNoiseRadius < 0.1f) continue;
-            float strength = CalculateAudioStrength(npc, npcNoiseEmitter.currentNoiseRadius, dist);
-
-            if (strength > maxAudioStrength)
-            {
-                maxAudioStrength = strength;
-                loudestTarget = npc;
-                isTargetNPC = true;
-            }
+            CheckTarget(npc, noise.currentNoiseRadius, true);
         }
 
         CurrentAlertLevel = maxAudioStrength;
 
-        if (loudestTarget != null && maxAudioStrength > detectionThreshold)
+        if (bestTarget != null)
         {
             if (isTargetNPC)
             {
-                CurrentNPCTarget = loudestTarget;
+                CurrentNPCTarget = bestTarget;
                 CurrentPlayer = null;
             }
             else
             {
-                CurrentPlayer = loudestTarget;
+                CurrentPlayer = bestTarget;
                 CurrentNPCTarget = null;
             }
-            TargetPositionOfInterest = loudestTarget.position;
+            TargetPositionOfInterest = bestTarget.position;
             HasTargetOfInterest = true;
             timeSinceLastHeard = 0f;
         }
@@ -246,6 +252,29 @@ public class EnemySenses : MonoBehaviour
         CurrentNPCTarget = null;
         CurrentNoisyObject = null;
     }
+
+    public void SetPlayerTarget(Transform player)
+    {
+        CurrentPlayer = player;
+        CurrentNPCTarget = null;
+        if (player != null)
+        {
+            TargetPositionOfInterest = player.position;
+            HasTargetOfInterest = true;
+        }
+    }
+
+    public void SetNPCTarget(Transform npc)
+    {
+        CurrentNPCTarget = npc;
+        CurrentPlayer = null;
+        if (npc != null)
+        {
+            TargetPositionOfInterest = npc.position;
+            HasTargetOfInterest = true;
+        }
+    }
+
     public void IgnoreCurrentNoisyObjectFor(float seconds)
     {
         if (CurrentNoisyObject != null)

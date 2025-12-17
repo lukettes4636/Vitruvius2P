@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 using UnityEngine.VFX; 
 
@@ -53,7 +53,7 @@ public class Wall_Destruction : MonoBehaviour
         {
             
             GameObject dustVFXInstance = Instantiate(dustExplosionVFXPrefab, impactPoint, Quaternion.identity);
-            StartCoroutine(CleanupVFX(dustVFXInstance));
+            Destroy(dustVFXInstance, VfxCleanupTime);
         }
 
         
@@ -65,10 +65,18 @@ public class Wall_Destruction : MonoBehaviour
         
         SetupFragments(brokenWall);
         
-        StartCoroutine(SimulateAndFreeze(brokenWall.transform, impactPoint, impactDirection));
+        if (isActiveAndEnabled)
+        {
+            StartCoroutine(SimulateAndFreeze(brokenWall.transform, impactPoint, impactDirection));
+        }
 
         
-        Destroy(gameObject);
+        
+        
+        if (gameObject.scene.IsValid())
+        {
+            gameObject.SetActive(false);
+        }
     }
 
     private void SetupFragments(GameObject brokenWall)
@@ -197,15 +205,5 @@ public class Wall_Destruction : MonoBehaviour
     
     
     
-    private IEnumerator CleanupVFX(GameObject vfxObject)
-    {
-        
-        yield return new WaitForSeconds(VfxCleanupTime);
-
-        
-        if (vfxObject != null)
-        {
-            Destroy(vfxObject);
-        }
-    }
+    
 }
