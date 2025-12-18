@@ -26,7 +26,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 228307397173094237, guid: 6f8e07c9883741f46885d6cf26f3e4a6, type: 3}
       propertyPath: m_StaticEditorFlags
-      value: 2147483643
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 603707692617891303, guid: 6f8e07c9883741f46885d6cf26f3e4a6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -86,7 +86,7 @@ PrefabInstance:
       objectReference: {fileID: 2100000, guid: 86bf9e74e827f6e4db515f6da986af62, type: 2}
     - target: {fileID: 7787761768730363460, guid: 6f8e07c9883741f46885d6cf26f3e4a6, type: 3}
       propertyPath: m_Enabled
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
