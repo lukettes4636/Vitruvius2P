@@ -7,22 +7,18 @@ public class EnemySenses : MonoBehaviour
     public Transform[] playerTargets;
 
     [Header("Deteccion de NPCs")]
+    [Tooltip("NPCs que el enemigo puede detectar y atacar")]
     public Transform[] npcTargets;
 
     [Header("Deteccion de Objetos")]
+    [Tooltip("Sistema de deteccion de objetos que emiten ruido")]
     public ObjectNoiseDetection objectNoiseDetection;
 
     [Header("Configuracion de Audio")]
     [Range(0.5f, 3.0f)] public float audioSensitivity = 1.0f;
-    [Tooltip("Rango maximo de deteccion por sonido")]
     public float maxHearingDistance = 20f;
     public float minDetectionRadius = 1.5f;
-    [Range(0.0f, 1.0f)] public float detectionThreshold = 0.15f;
-
-    [Header("Deteccion de Proximidad")]
-    [Tooltip("NOTA: El enemigo es CIEGO, solo detecta por SONIDO. Esta opcion esta deshabilitada.")]
-    public float proximityDetectionRadius = 3.5f;
-    [Range(1.0f, 3.0f)] public float closeRangeBoost = 2.0f;
+    [Range(0.0f, 1.0f)] public float detectionThreshold = 0.1f;
 
     [Header("Obstaculos de Audio")]
     public LayerMask soundBlockerLayer;
@@ -32,168 +28,140 @@ public class EnemySenses : MonoBehaviour
     public float memoryDuration = 3.0f;
     private float timeSinceLastHeard = 0f;
 
+    
+    private Dictionary<Transform, float> ignoredObjects = new Dictionary<Transform, float>();
+
     [Header("Deteccion de Paredes")]
     public LayerMask destructibleWallLayer;
-    public float wallDetectionDistance = 5.0f;
-    public float wallDetectionRadius = 1.0f;
-    public float frontWallCheckDistance = 2.5f;
+    public float wallDetectionDistance = 3.0f;
+    public float wallDetectionRadius = 0.5f;
 
-    public Vector3 TargetPositionOfInterest { get; set; }
-    public bool HasTargetOfInterest { get; set; }
-    public Transform CurrentPlayer { get; set; }
-    public Transform CurrentNPCTarget { get; set; }
+    
+    public Vector3 TargetPositionOfInterest { get; private set; }
+    public bool HasTargetOfInterest { get; private set; }
+    public Transform CurrentPlayer { get; private set; }
+    public Transform CurrentNPCTarget { get; private set; }
     public Transform CurrentNoisyObject { get; private set; }
-    public GameObject CurrentWallTarget { get; set; }
+    public GameObject CurrentWallTarget { get; private set; }
     public float CurrentAlertLevel { get; private set; }
-
+    
+    
+    
+    
     public Transform CurrentTarget => CurrentPlayer ?? CurrentNPCTarget ?? CurrentNoisyObject;
 
     public bool showDebugGizmos = true;
-    private Dictionary<Transform, float> ignoredObjectsUntil = new Dictionary<Transform, float>();
 
     public void Tick()
     {
-        PruneIgnoredObjects();
+        CleanupIgnoredObjects();
         ProcessAudioDetection();
         ProcessObjectNoiseDetection();
     }
 
-    private void ProcessAudioDetection()
+    private void CleanupIgnoredObjects()
     {
-        Transform bestTarget = null;
-        float minDistance = float.MaxValue;
-        float maxAudioStrength = 0f;
-        bool isTargetNPC = false;
+        if (ignoredObjects.Count == 0) return;
 
-        void CheckTarget(Transform target, float noiseRadius, float idleNoiseRadius, bool isNPC)
+        List<Transform> toRemove = new List<Transform>();
+        foreach (var kvp in ignoredObjects)
         {
-            if (target == null) return;
-
-            float dist = Vector3.Distance(transform.position, target.position);
-            
-            
-            
-            bool isEmittingActiveNoise = noiseRadius > idleNoiseRadius + 0.1f;
-            
-            
-            if (!isEmittingActiveNoise)
+            if (Time.time > kvp.Value)
             {
-                return;
-            }
-            
-            
-            float strength = CalculateAudioStrength(target, noiseRadius, dist);
-            
-            
-            
-            bool shouldDetect = strength > detectionThreshold;
-
-            if (shouldDetect)
-            {
-                if (strength > maxAudioStrength) maxAudioStrength = strength;
-
-                if (dist < minDistance)
-                {
-                    minDistance = dist;
-                    bestTarget = target;
-                    isTargetNPC = isNPC;
-                }
+                toRemove.Add(kvp.Key);
             }
         }
 
+        foreach (var t in toRemove)
+        {
+            ignoredObjects.Remove(t);
+        }
+    }
+
+    public bool IsTargetAudible(Transform target)
+    {
+        if (target == null) return false;
+        
+        float dist = Vector3.Distance(transform.position, target.position);
+        float noiseRadius = 0f;
+
+        var playerNoise = target.GetComponent<PlayerNoiseEmitter>();
+        if (playerNoise != null) noiseRadius = playerNoise.currentNoiseRadius;
+        
+        var npcNoise = target.GetComponent<NPCNoiseEmitter>();
+        if (npcNoise != null) noiseRadius = npcNoise.currentNoiseRadius;
+
+        if (noiseRadius < 0.1f) return false;
+
+        float strength = CalculateAudioStrength(target, noiseRadius, dist);
+        return strength > detectionThreshold;
+    }
+
+    private void ProcessAudioDetection()
+    {
+        Transform loudestTarget = null;
+        float maxAudioStrength = 0f;
+        bool isTargetNPC = false;
+
+        
         foreach (Transform player in playerTargets)
         {
             if (player == null) continue;
             var health = player.GetComponent<PlayerHealth>();
             if (health != null && health.IsDead) continue;
-            var noise = player.GetComponent<PlayerNoiseEmitter>();
 
-            if (noise != null)
+            float dist = Vector3.Distance(transform.position, player.position);
+            var noiseEmitter = player.GetComponent<PlayerNoiseEmitter>();
+
+            if (noiseEmitter == null || noiseEmitter.currentNoiseRadius < 0.1f) continue;
+            float strength = CalculateAudioStrength(player, noiseEmitter.currentNoiseRadius, dist);
+
+            if (strength > maxAudioStrength)
             {
-                float effectiveRadius = Mathf.Max(noise.currentNoiseRadius, 1.5f);
-                float idleRadius = noise.idleNoiseRadius;
-                CheckTarget(player, effectiveRadius, idleRadius, false);
-            }
-            else
-            {
-                
-                CheckTarget(player, 2.0f, 0f, false);
+                maxAudioStrength = strength;
+                loudestTarget = player;
+                isTargetNPC = false;
             }
         }
 
+        
         foreach (Transform npc in npcTargets)
         {
             if (npc == null) continue;
-            var health = npc.GetComponent<NPCHealth>();
-            if (health != null && health.IsDead) continue;
-            var noise = npc.GetComponent<NPCNoiseEmitter>();
+            var npcHealth = npc.GetComponent<NPCHealth>();
+            if (npcHealth != null && npcHealth.IsDead) continue;
 
-            if (noise != null)
+            float dist = Vector3.Distance(transform.position, npc.position);
+            var npcNoiseEmitter = npc.GetComponent<NPCNoiseEmitter>();
+
+            if (npcNoiseEmitter == null || npcNoiseEmitter.currentNoiseRadius < 0.1f) continue;
+            float strength = CalculateAudioStrength(npc, npcNoiseEmitter.currentNoiseRadius, dist);
+
+            if (strength > maxAudioStrength)
             {
-                float effectiveRadius = Mathf.Max(noise.currentNoiseRadius, 1.5f);
-                float idleRadius = noise.idleNoiseRadius;
-                CheckTarget(npc, effectiveRadius, idleRadius, true);
-            }
-            else
-            {
-                
-                CheckTarget(npc, 2.0f, 0f, true);
+                maxAudioStrength = strength;
+                loudestTarget = npc;
+                isTargetNPC = true;
             }
         }
 
         CurrentAlertLevel = maxAudioStrength;
 
-        if (bestTarget != null)
+        if (loudestTarget != null && maxAudioStrength > detectionThreshold)
         {
-            
-            bool stillMakingNoise = false;
-            PlayerNoiseEmitter playerNoise = bestTarget.GetComponent<PlayerNoiseEmitter>();
-            NPCNoiseEmitter npcNoise = bestTarget.GetComponent<NPCNoiseEmitter>();
-            
-            if (playerNoise != null)
+            if (isTargetNPC)
             {
-                stillMakingNoise = playerNoise.currentNoiseRadius > playerNoise.idleNoiseRadius + 0.1f;
-            }
-            else if (npcNoise != null)
-            {
-                stillMakingNoise = npcNoise.currentNoiseRadius > npcNoise.idleNoiseRadius + 0.1f;
-            }
-            
-            if (stillMakingNoise)
-            {
-                if (isTargetNPC)
-                {
-                    CurrentNPCTarget = bestTarget;
-                    CurrentPlayer = null;
-                }
-                else
-                {
-                    CurrentPlayer = bestTarget;
-                    CurrentNPCTarget = null;
-                }
-                TargetPositionOfInterest = bestTarget.position;
-                HasTargetOfInterest = true;
-                timeSinceLastHeard = 0f;
+                CurrentNPCTarget = loudestTarget;
+                CurrentPlayer = null;
             }
             else
             {
-                
-                if (CurrentPlayer == bestTarget) CurrentPlayer = null;
-                if (CurrentNPCTarget == bestTarget) CurrentNPCTarget = null;
-                
-                if (CurrentPlayer == null && CurrentNPCTarget == null)
-                {
-                    HasTargetOfInterest = false;
-                }
-                
-                timeSinceLastHeard += Time.deltaTime;
-                if (timeSinceLastHeard > memoryDuration)
-                {
-                    HasTargetOfInterest = false;
-                    CurrentPlayer = null;
-                    CurrentNPCTarget = null;
-                }
+                CurrentPlayer = loudestTarget;
+                CurrentNPCTarget = null;
             }
+            TargetPositionOfInterest = loudestTarget.position;
+            HasTargetOfInterest = true;
+            timeSinceLastHeard = 0f;
         }
         else
         {
@@ -210,32 +178,11 @@ public class EnemySenses : MonoBehaviour
     private float CalculateAudioStrength(Transform target, float noiseRadius, float distance)
     {
         if (distance > maxHearingDistance) return 0f;
-
-        float sensitivity = audioSensitivity;
-        if (distance <= proximityDetectionRadius)
-        {
-            float proximityFactor = 1f - (distance / proximityDetectionRadius);
-            sensitivity *= (1f + (closeRangeBoost - 1f) * Mathf.Pow(proximityFactor, 0.5f));
-        }
-
-        float rawRadius = noiseRadius * sensitivity;
+        float rawRadius = noiseRadius * audioSensitivity;
         int walls = CountSoundBlockers(target);
         float attenuatedRadius = rawRadius * Mathf.Pow(soundAttenuationPerWall, walls);
         float effectiveRadius = Mathf.Max(attenuatedRadius, minDetectionRadius);
-
-        if (distance <= effectiveRadius)
-        {
-            float baseStrength = 1f - (distance / effectiveRadius);
-
-            if (distance < 2.0f)
-            {
-                float closeFactor = 1f - (distance / 2.0f);
-                baseStrength = Mathf.Lerp(baseStrength, 1.0f, closeFactor * 0.5f);
-            }
-
-            return Mathf.Clamp01(baseStrength);
-        }
-
+        if (distance <= effectiveRadius) return Mathf.Clamp01(1f - (distance / effectiveRadius));
         return 0f;
     }
 
@@ -248,42 +195,28 @@ public class EnemySenses : MonoBehaviour
         return Physics.RaycastAll(start, dir, dist, soundBlockerLayer).Length;
     }
 
+    
+    
     public bool CheckForWallInFront()
     {
         Vector3 origin = transform.position + Vector3.up;
 
-        Vector3[] checkOffsets = new Vector3[]
-        {
-            transform.forward * 1.0f,
-            (transform.forward + transform.right * 0.3f).normalized * 1.0f,
-            (transform.forward - transform.right * 0.3f).normalized * 1.0f
-        };
+        
+        Vector3 checkPos = origin + transform.forward * 0.8f;
+        float checkRadius = 0.6f;
 
-        foreach (Vector3 offset in checkOffsets)
-        {
-            Vector3 checkPos = origin + offset;
-            Collider[] hits = Physics.OverlapSphere(checkPos, 0.8f, destructibleWallLayer);
+        
+        
+        Collider[] hits = Physics.OverlapSphere(checkPos, checkRadius, destructibleWallLayer);
 
-            foreach (var col in hits)
+        foreach (var col in hits)
+        {
+            if (col.gameObject != gameObject)
             {
-                if (col.gameObject != gameObject && col.gameObject.activeInHierarchy)
-                {
-                    CurrentWallTarget = col.gameObject;
-                    return true;
-                }
-            }
-        }
-
-        RaycastHit hit;
-        if (Physics.Raycast(origin, transform.forward, out hit, frontWallCheckDistance, destructibleWallLayer))
-        {
-            if (hit.collider.gameObject != gameObject && hit.collider.gameObject.activeInHierarchy)
-            {
-                CurrentWallTarget = hit.collider.gameObject;
+                CurrentWallTarget = col.gameObject;
                 return true;
             }
         }
-
         return false;
     }
 
@@ -298,26 +231,14 @@ public class EnemySenses : MonoBehaviour
         float checkDist = Mathf.Min(distance, wallDetectionDistance);
 
         RaycastHit[] hits = Physics.SphereCastAll(start, wallDetectionRadius, direction, checkDist, destructibleWallLayer);
-
         foreach (RaycastHit hit in hits)
         {
-            if (hit.collider.gameObject != gameObject && hit.collider.gameObject.activeInHierarchy)
+            if (hit.collider.gameObject != gameObject)
             {
                 CurrentWallTarget = hit.collider.gameObject;
                 return true;
             }
         }
-
-        RaycastHit simpleHit;
-        if (Physics.Raycast(start, direction, out simpleHit, checkDist, destructibleWallLayer))
-        {
-            if (simpleHit.collider.gameObject != gameObject && simpleHit.collider.gameObject.activeInHierarchy)
-            {
-                CurrentWallTarget = simpleHit.collider.gameObject;
-                return true;
-            }
-        }
-
         CurrentWallTarget = null;
         return false;
     }
@@ -336,7 +257,7 @@ public class EnemySenses : MonoBehaviour
         {
             if (objectNoiseDetection.GetLoudestObject(out Transform noisyObject, out Vector3 objectPosition))
             {
-                if (noisyObject != null && !IsObjectIgnored(noisyObject))
+                if (!ignoredObjects.ContainsKey(noisyObject))
                 {
                     CurrentNoisyObject = noisyObject;
                     TargetPositionOfInterest = objectPosition;
@@ -348,35 +269,25 @@ public class EnemySenses : MonoBehaviour
         }
 
         
-        if (CurrentNoisyObject != null)
-        {
-            
-            bool stillLoudest = false;
-            if (objectNoiseDetection != null && objectNoiseDetection.HasNoisyObjectNearby())
-            {
-                if (objectNoiseDetection.GetLoudestObject(out Transform loudest, out Vector3 pos))
-                {
-                    if (loudest == CurrentNoisyObject)
-                    {
-                        stillLoudest = true;
-                        TargetPositionOfInterest = pos; 
-                    }
-                }
-            }
-            
-            if (!stillLoudest)
-            {
-                
-                CurrentNoisyObject = null;
-                if (CurrentPlayer == null && CurrentNPCTarget == null)
-                {
-                    HasTargetOfInterest = false;
-                }
-            }
-        }
-        else if (CurrentPlayer == null && CurrentNPCTarget == null && !HasTargetOfInterest)
+        if (CurrentPlayer == null && CurrentNPCTarget == null)
         {
             CurrentNoisyObject = null;
+        }
+    }
+
+    public void IgnoreCurrentNoisyObjectFor(float duration)
+    {
+        if (CurrentNoisyObject != null)
+        {
+            if (!ignoredObjects.ContainsKey(CurrentNoisyObject))
+            {
+                ignoredObjects.Add(CurrentNoisyObject, Time.time + duration);
+            }
+            else
+            {
+                ignoredObjects[CurrentNoisyObject] = Time.time + duration;
+            }
+            ForgetTarget();
         }
     }
 
@@ -386,60 +297,41 @@ public class EnemySenses : MonoBehaviour
         CurrentPlayer = null;
         CurrentNPCTarget = null;
         CurrentNoisyObject = null;
-        CurrentWallTarget = null;
     }
 
-    public void SetPlayerTarget(Transform player)
+    public void SetPlayerTarget(Transform target)
     {
-        CurrentPlayer = player;
+        CurrentPlayer = target;
         CurrentNPCTarget = null;
-        if (player != null)
+        CurrentNoisyObject = null;
+        if (target != null)
         {
-            TargetPositionOfInterest = player.position;
+            TargetPositionOfInterest = target.position;
             HasTargetOfInterest = true;
         }
     }
 
-    public void SetNPCTarget(Transform npc)
+    public void SetNPCTarget(Transform target)
     {
-        CurrentNPCTarget = npc;
+        CurrentNPCTarget = target;
         CurrentPlayer = null;
-        if (npc != null)
+        CurrentNoisyObject = null;
+        if (target != null)
         {
-            TargetPositionOfInterest = npc.position;
+            TargetPositionOfInterest = target.position;
             HasTargetOfInterest = true;
         }
     }
 
-    public void IgnoreCurrentNoisyObjectFor(float seconds)
+    public void SetInterestPosition(Vector3 position)
     {
-        if (CurrentNoisyObject != null)
-        {
-            ignoredObjectsUntil[CurrentNoisyObject] = Time.time + seconds;
-            CurrentNoisyObject = null;
-            HasTargetOfInterest = false;
-        }
+        TargetPositionOfInterest = position;
+        HasTargetOfInterest = true;
     }
 
-    private bool IsObjectIgnored(Transform obj)
+    public void SetWallTarget(GameObject wall)
     {
-        if (obj == null) return false;
-        if (ignoredObjectsUntil.TryGetValue(obj, out float until))
-        {
-            return Time.time < until;
-        }
-        return false;
-    }
-
-    private void PruneIgnoredObjects()
-    {
-        if (ignoredObjectsUntil.Count == 0) return;
-        var keys = new List<Transform>(ignoredObjectsUntil.Keys);
-        foreach (var k in keys)
-        {
-            if (ignoredObjectsUntil[k] <= Time.time)
-                ignoredObjectsUntil.Remove(k);
-        }
+        CurrentWallTarget = wall;
     }
 
     private void OnDrawGizmosSelected()
@@ -449,29 +341,16 @@ public class EnemySenses : MonoBehaviour
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, maxHearingDistance);
 
-        Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
-        Gizmos.DrawWireSphere(transform.position, proximityDetectionRadius);
-
         if (HasTargetOfInterest)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, TargetPositionOfInterest);
-
-            float dist = Vector3.Distance(transform.position, TargetPositionOfInterest);
-            Gizmos.color = dist <= proximityDetectionRadius ? Color.green : Color.red;
-            Gizmos.DrawWireSphere(TargetPositionOfInterest, 0.5f);
         }
 
-        Vector3 origin = transform.position + Vector3.up;
+        
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(origin + transform.forward * 1.0f, 0.8f);
-        Gizmos.DrawRay(origin, transform.forward * frontWallCheckDistance);
-
-        if (CurrentWallTarget != null)
-        {
-            Gizmos.color = Color.magenta;
-            Gizmos.DrawLine(transform.position, CurrentWallTarget.transform.position);
-            Gizmos.DrawWireCube(CurrentWallTarget.transform.position, Vector3.one * 2f);
-        }
+        Vector3 origin = transform.position + Vector3.up;
+        Vector3 checkPos = origin + transform.forward * 0.8f;
+        Gizmos.DrawWireSphere(checkPos, 0.6f);
     }
 }

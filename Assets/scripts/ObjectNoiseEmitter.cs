@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Gameplay;
 
 
@@ -25,6 +25,10 @@ public class ObjectNoiseEmitter : MonoBehaviour
     [SerializeField] private float movingSpeedThreshold = 0.5f;
     [Tooltip("Velocidad minima para considerar movimiento rapido")]
     [SerializeField] private float fastMovingSpeedThreshold = 3.0f;
+
+    [Header("Configuracion de Tipo")]
+    [Tooltip("Si es true, este objeto sera ignorado por el sistema de deteccion de ruido (util para escombros)")]
+    public bool isDebris = false;
 
     [Header("Debug")]
     [Tooltip("Mostrar gizmo de radio de ruido en el editor")]
