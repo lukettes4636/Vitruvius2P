@@ -1,10 +1,16 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.VFX;
 
+
+
+
+
 public class MovJugador2 : MonoBehaviour
 {
+    #region Serialized Fields
+
     [Header("Velocidades")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float runSpeed = 8f;
@@ -31,12 +37,15 @@ public class MovJugador2 : MonoBehaviour
     [Header("Aceleracion")]
     [SerializeField] private float acceleration = 12f;
     [SerializeField] private float deceleration = 16f;
-    private float currentSpeedScalar;
 
     [Header("Collection Settings")]
     [SerializeField] private float collectionRange = 2f;
     [SerializeField] private LayerMask collectableLayer;
     [SerializeField] private InputActionReference collectAction;
+
+    [Header("Pickup Animation")]
+    [Tooltip("Sistema de animacion procedural para alcanzar objetos")]
+    [SerializeField] private ItemPickupReach pickupReach;
 
     [Header("Door Lift Settings")]
     [Tooltip("Input Action para interactuar (ej. Boton X o Cuadrado)")]
@@ -77,10 +86,15 @@ public class MovJugador2 : MonoBehaviour
     [Tooltip("Arrastra aqui el objeto que tiene el script PlayerPopupBillboard")]
     [SerializeField] private PlayerPopupBillboard popupBillboard;
 
+    #endregion
+
+    #region Private Fields
+
     private CharacterController controller;
     private Animator animator;
     private PlayerInventory playerInventory;
     private PlayerStaminaUI staminaUI;
+    private PlayerInput playerInput;
 
     private Vector2 moveInput;
     private bool isRunningInput = false;
@@ -91,13 +105,13 @@ public class MovJugador2 : MonoBehaviour
     private float cooldownTimer = 0f;
     private bool canRun = true;
     private Vector3 verticalVelocity;
+    private float currentSpeedScalar;
 
     private bool wasRunning = false;
     private bool staminaWasEmpty = false;
 
     private bool isInUI = false;
     private KeypadUIManager currentLockUI = null;
-    private PlayerInput playerInput;
 
     private ElectricBox currentElectricBox = null;
     private PuertaDobleAccion currentDoor = null;
@@ -114,73 +128,169 @@ public class MovJugador2 : MonoBehaviour
     private bool isShaking = false;
     private Gamepad gamepad;
 
-    void Awake()
+    #endregion
+
+    #region Unity Lifecycle
+
+    private void Awake()
+    {
+        InitializeComponents();
+        InitializeStamina();
+        InitializeCollider();
+        InitializeInputActions();
+        InitializeCamera();
+
+        currentSpeedScalar = moveSpeed;
+    }
+
+    private void OnEnable()
+    {
+        EnableInputActions();
+        ResetGamepadVibration();
+    }
+
+    private void OnDisable()
+    {
+        DisableInputActions();
+        ResetGamepadVibration();
+    }
+
+    private void Update()
+    {
+        UpdateVisualEffects();
+
+        if (isInUI || isAnimationInLiftState)
+        {
+            UpdateAnimatorToIdle();
+            return;
+        }
+
+        UpdateStamina();
+        UpdateMovement();
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        HandleTriggerEnter(other);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        HandleTriggerExit(other);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, collectionRange);
+    }
+
+    #endregion
+
+    #region Initialization
+
+    private void InitializeComponents()
     {
         controller = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
         playerInventory = GetComponent<PlayerInventory>();
         staminaUI = GetComponent<PlayerStaminaUI>();
+        playerInput = GetComponent<PlayerInput>();
 
-        
-        if (fatigueFeedback == null) fatigueFeedback = GetComponent<StaminaFatigueFeedback>();
+        if (fatigueFeedback == null)
+        {
+            fatigueFeedback = GetComponent<StaminaFatigueFeedback>();
+        }
 
-        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        if (pickupReach == null)
+        {
+            pickupReach = GetComponent<ItemPickupReach>();
+        }
 
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+        }
+
+        if (playerInput != null && playerInput.devices.Count > 0)
+        {
+            gamepad = playerInput.devices[0] as Gamepad;
+        }
+
+        flashlightController = GetComponentInChildren<FlashlightController>();
+    }
+
+    private void InitializeStamina()
+    {
         currentStamina = maxStamina;
-
-        controller.height = standHeight;
-        controller.center = standCenter;
 
         if (staminaUI != null)
         {
             staminaUI.InitializeMaxStamina(maxStamina);
         }
+    }
 
+    private void InitializeCollider()
+    {
+        controller.height = standHeight;
+        controller.center = standCenter;
+    }
+
+    private void InitializeInputActions()
+    {
         if (collectAction != null)
-            collectAction.action.performed += ctx => TryCollect();
+        {
+            collectAction.action.performed += context => TryCollect();
+        }
 
         if (inventoryAction != null)
-            inventoryAction.action.performed += ctx => CheckForInventory();
+        {
+            inventoryAction.action.performed += context => CheckForInventory();
+        }
 
         if (liftDoorAction != null)
         {
-            liftDoorAction.action.performed += ctx => OnLiftDoorPressed();
-            liftDoorAction.action.canceled += ctx => OnLiftDoorReleased();
+            liftDoorAction.action.performed += context => OnLiftDoorPressed();
+            liftDoorAction.action.canceled += context => OnLiftDoorReleased();
         }
-
-        playerInput = GetComponent<PlayerInput>();
-        if (playerInput != null && playerInput.devices.Count > 0)
-            gamepad = playerInput.devices[0] as Gamepad;
-
-        cameraTransform = Camera.main != null ? Camera.main.transform : null;
-        if (cameraTransform != null)
-            originalCameraPosition = cameraTransform.localPosition;
-        currentSpeedScalar = moveSpeed;
-
-        flashlightController = GetComponentInChildren<FlashlightController>();
     }
 
-    private void OnEnable()
+    private void InitializeCamera()
+    {
+        cameraTransform = Camera.main != null ? Camera.main.transform : null;
+        if (cameraTransform != null)
+        {
+            originalCameraPosition = cameraTransform.localPosition;
+        }
+    }
+
+    private void EnableInputActions()
     {
         if (collectAction != null) collectAction.action.Enable();
         if (inventoryAction != null) inventoryAction.action.Enable();
         if (liftDoorAction != null) liftDoorAction.action.Enable();
-
-        if (gamepad != null)
-            gamepad.SetMotorSpeeds(0f, 0f);
     }
 
-    private void OnDisable()
+    private void DisableInputActions()
     {
         if (collectAction != null) collectAction.action.Disable();
         if (inventoryAction != null) inventoryAction.action.Disable();
         if (liftDoorAction != null) liftDoorAction.action.Disable();
-
-        if (gamepad != null)
-            gamepad.SetMotorSpeeds(0f, 0f);
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void ResetGamepadVibration()
+    {
+        if (gamepad != null)
+        {
+            gamepad.SetMotorSpeeds(0f, 0f);
+        }
+    }
+
+    #endregion
+
+    #region Trigger Handling
+
+    private void HandleTriggerEnter(Collider other)
     {
         FallenDoor doorScript = other.GetComponent<FallenDoor>();
         if (doorScript != null)
@@ -211,7 +321,7 @@ public class MovJugador2 : MonoBehaviour
         }
     }
 
-    private void OnTriggerExit(Collider other)
+    private void HandleTriggerExit(Collider other)
     {
         FallenDoor doorScript = other.GetComponent<FallenDoor>();
         if (doorScript != null && doorScript == currentDoorToLift)
@@ -246,6 +356,39 @@ public class MovJugador2 : MonoBehaviour
             currentKeyDoor = null;
         }
     }
+
+    #endregion
+
+    #region Input Callbacks
+
+    public void OnMove(InputValue value)
+    {
+        if (isInUI)
+        {
+            moveInput = Vector2.zero;
+            return;
+        }
+        moveInput = value.Get<Vector2>();
+    }
+
+    public void OnRun(InputValue value)
+    {
+        if (isInUI) return;
+        isRunningInput = value.isPressed;
+    }
+
+    public void OnCrouch(InputValue value)
+    {
+        if (isInUI) return;
+        if (value.isPressed)
+        {
+            isCrouching = !isCrouching;
+        }
+    }
+
+    #endregion
+
+    #region Door Lift System
 
     private void OnLiftDoorPressed()
     {
@@ -348,11 +491,182 @@ public class MovJugador2 : MonoBehaviour
         isHoldingDoor = false;
     }
 
-    public void ClearCurrentDoor(PuertaDobleAccion door)
+    #endregion
+
+    #region Interaction System
+
+    private void TryCollect()
     {
-        if (currentDoor == door)
-            currentDoor = null;
+        if (isInUI) return;
+
+        if (TryInteractWithDoor()) return;
+        if (TryInteractWithElectricBox()) return;
+        if (TryInteractWithKeyDoor()) return;
+
+        TryCollectItems();
     }
+
+    private bool TryInteractWithDoor()
+    {
+        if (currentDoor != null)
+        {
+            if (!currentDoor.enabled || currentDoor == null)
+            {
+                currentDoor = null;
+                return false;
+            }
+
+            currentDoor.IntentoDeAccion(this.gameObject);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryInteractWithElectricBox()
+    {
+        if (currentElectricBox != null)
+        {
+            currentElectricBox.TryDeactivatePower(this);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryInteractWithKeyDoor()
+    {
+        if (currentKeyDoor != null)
+        {
+            currentKeyDoor.IntentoAbrirPuerta(this);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void TryCollectItems()
+    {
+        Collider[] items = Physics.OverlapSphere(transform.position, collectionRange, collectableLayer);
+
+        if (items.Length == 0)
+        {
+            items = Physics.OverlapSphere(transform.position, collectionRange);
+        }
+
+        GameObject closestItem = FindClosestCollectableItem(items);
+
+        if (closestItem != null)
+        {
+            if (pickupReach != null)
+            {
+                pickupReach.ReachForItem(closestItem);
+            }
+
+            StartCoroutine(CollectAfterReach(closestItem));
+        }
+    }
+
+    private GameObject FindClosestCollectableItem(Collider[] items)
+    {
+        GameObject closestItem = null;
+        float closestDistance = float.MaxValue;
+
+        foreach (Collider itemCollider in items)
+        {
+            GameObject item = itemCollider.gameObject;
+
+            if (IsInteractiveObject(item))
+            {
+                continue;
+            }
+
+            if (IsCollectableItem(item))
+            {
+                float distance = Vector3.Distance(transform.position, item.transform.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestItem = item;
+                }
+            }
+        }
+
+        return closestItem;
+    }
+
+    private bool IsInteractiveObject(GameObject obj)
+    {
+        return obj.GetComponent<PuertaDobleAccion>() != null ||
+               obj.GetComponent<ElectricBox>() != null ||
+               obj.GetComponent<PuertaDobleConLlave>() != null;
+    }
+
+    private bool IsCollectableItem(GameObject obj)
+    {
+        return obj.GetComponent<PickableItem>() != null ||
+               obj.GetComponent<KeyCard>() != null ||
+               obj.GetComponent<CollectableItem>() != null;
+    }
+
+    private IEnumerator CollectAfterReach(GameObject item)
+    {
+        yield return new WaitForSeconds(0.2f);
+
+        if (item == null) yield break;
+
+        PickableItem pickable = item.GetComponent<PickableItem>();
+        if (pickable != null)
+        {
+            pickable.Collect(gameObject);
+            if (popupBillboard != null)
+            {
+                popupBillboard.ShowMessage($"I found the {pickable.DisplayName}!", 2f);
+            }
+
+            if (pickupReach != null)
+            {
+                pickupReach.OnItemCollected();
+            }
+            yield break;
+        }
+
+        KeyCard keyCard = item.GetComponent<KeyCard>();
+        if (keyCard != null)
+        {
+            keyCard.Collect(gameObject);
+            if (popupBillboard != null)
+            {
+                popupBillboard.ShowMessage($"I found the {keyCard.name}!", 2f);
+            }
+
+            if (pickupReach != null)
+            {
+                pickupReach.OnItemCollected();
+            }
+            yield break;
+        }
+
+        CollectableItem collectable = item.GetComponent<CollectableItem>();
+        if (collectable != null)
+        {
+            collectable.Collect(gameObject);
+            if (popupBillboard != null)
+            {
+                popupBillboard.ShowMessage($"I found the {collectable.ItemID}!", 2f);
+            }
+
+            if (pickupReach != null)
+            {
+                pickupReach.OnItemCollected();
+            }
+            yield break;
+        }
+    }
+
+    #endregion
+
+    #region Cooperative Effects
 
     public void StartCooperativeEffects(float shakeDuration, float shakeMagnitude, float lowFrequency, float highFrequency, float rumbleDuration)
     {
@@ -372,11 +686,14 @@ public class MovJugador2 : MonoBehaviour
     private IEnumerator ShakeCoroutine(float duration, float magnitude)
     {
         if (isShaking) yield break;
+
         isShaking = true;
         float elapsed = 0f;
 
         if (originalCameraPosition == Vector3.zero && cameraTransform.parent == null)
+        {
             originalCameraPosition = cameraTransform.localPosition;
+        }
 
         while (elapsed < duration)
         {
@@ -403,6 +720,44 @@ public class MovJugador2 : MonoBehaviour
         }
     }
 
+    #endregion
+
+    #region UI Management
+
+    public void EnterLockMode(KeypadUIManager uiManager)
+    {
+        if (isInUI) return;
+
+        currentLockUI = uiManager;
+        isInUI = true;
+
+        if (controller != null) controller.enabled = false;
+        if (animator != null) animator.enabled = false;
+
+        if (playerInput == null) playerInput = GetComponent<PlayerInput>();
+        if (playerInput != null)
+        {
+            playerInput.SwitchCurrentActionMap("UI");
+        }
+    }
+
+    public void ExitLockMode()
+    {
+        if (!isInUI) return;
+
+        isInUI = false;
+        currentLockUI = null;
+
+        if (controller != null) controller.enabled = true;
+        if (animator != null) animator.enabled = true;
+
+        if (playerInput == null) playerInput = GetComponent<PlayerInput>();
+        if (playerInput != null)
+        {
+            playerInput.SwitchCurrentActionMap("Player");
+        }
+    }
+
     private void CheckForInventory()
     {
         if (playerInventory != null && playerInventory.HasKeyCard("Card") && !isInUI)
@@ -412,196 +767,44 @@ public class MovJugador2 : MonoBehaviour
         }
     }
 
-    public void OnMove(InputValue value)
-    {
-        if (isInUI)
-        {
-            moveInput = Vector2.zero;
-            return;
-        }
-        moveInput = value.Get<Vector2>();
-    }
+    #endregion
 
-    public void OnRun(InputValue value)
-    {
-        if (isInUI) return;
-        isRunningInput = value.isPressed;
-    }
+    #region Visual Effects
 
-    public void OnCrouch(InputValue value)
-    {
-        if (isInUI) return;
-        if (value.isPressed)
-            isCrouching = !isCrouching;
-    }
-
-    private void TryCollect()
-    {
-        if (isInUI) return;
-
-        if (currentDoor != null)
-        {
-            if (!currentDoor.enabled || currentDoor == null)
-            {
-                currentDoor = null;
-            }
-            else
-            {
-                currentDoor.IntentoDeAccion(this.gameObject);
-                return;
-            }
-        }
-
-        if (currentElectricBox != null)
-        {
-            currentElectricBox.TryDeactivatePower(this);
-            return;
-        }
-
-        if (currentKeyDoor != null)
-        {
-            currentKeyDoor.IntentoAbrirPuerta(this);
-            return;
-        }
-
-        Collider[] items = Physics.OverlapSphere(transform.position, collectionRange, collectableLayer);
-        if (items.Length == 0)
-        {
-            items = Physics.OverlapSphere(transform.position, collectionRange);
-        }
-        foreach (Collider itemCollider in items)
-        {
-            GameObject item = itemCollider.gameObject;
-
-            if (item.GetComponent<PuertaDobleAccion>() != null || item.GetComponent<ElectricBox>() != null || item.GetComponent<PuertaDobleConLlave>() != null)
-                continue;
-
-            PickableItem pickable = item.GetComponent<PickableItem>();
-            if (pickable != null)
-            {
-                pickable.Collect(gameObject);
-                if (popupBillboard != null)
-                    popupBillboard.ShowMessage($"I found the {pickable.DisplayName}!", 2f);
-                return;
-            }
-
-            KeyCard keyCard = item.GetComponent<KeyCard>();
-            if (keyCard != null)
-            {
-                keyCard.Collect(gameObject);
-                if (popupBillboard != null)
-                    popupBillboard.ShowMessage($"I found the {keyCard.name}!", 2f);
-                return;
-            }
-
-            CollectableItem collectable = item.GetComponent<CollectableItem>();
-            if (collectable != null)
-            {
-                collectable.Collect(gameObject);
-                if (popupBillboard != null)
-                    popupBillboard.ShowMessage($"I found the {collectable.ItemID}!", 2f);
-                return;
-            }
-        }
-    }
-
-    public void EnterLockMode(KeypadUIManager uiManager)
-    {
-        if (isInUI) return;
-        currentLockUI = uiManager;
-        isInUI = true;
-
-        if (controller != null) controller.enabled = false;
-        if (animator != null) animator.enabled = false;
-
-        if (playerInput == null) playerInput = GetComponent<PlayerInput>();
-        if (playerInput != null)
-            playerInput.SwitchCurrentActionMap("UI");
-    }
-
-    public void ExitLockMode()
-    {
-        if (!isInUI) return;
-        isInUI = false;
-        currentLockUI = null;
-
-        if (controller != null) controller.enabled = true;
-        if (animator != null) animator.enabled = true;
-
-        if (playerInput == null) playerInput = GetComponent<PlayerInput>();
-        if (playerInput != null)
-            playerInput.SwitchCurrentActionMap("Player");
-    }
-
-    public void StopMovement()
-    {
-        this.enabled = false;
-        verticalVelocity = Vector3.zero;
-        moveInput = Vector2.zero;
-        isRunningInput = false;
-
-        if (staminaUI != null)
-        {
-            staminaUI.HideImmediate();
-        }
-        wasRunning = false;
-
-        
-        if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
-
-        if (animator != null)
-        {
-            animator.SetFloat("Speed", 0f);
-            animator.SetBool("IsRunning", false);
-            animator.SetBool("IsCrouching", false);
-        }
-    }
-
-    public void AllowMovement()
-    {
-        this.enabled = true;
-    }
-
-    public void ResetMovementState()
-    {
-        this.enabled = true;
-        isInUI = false;
-
-        moveInput = Vector2.zero;
-        isRunningInput = false;
-        isCrouching = false;
-
-        verticalVelocity.y = -5f;
-        wasRunning = false;
-
-        
-        if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
-
-        if (staminaUI != null)
-        {
-            staminaUI.HideImmediate();
-        }
-    }
-
-    void Update()
+    private void UpdateVisualEffects()
     {
         if (fogSphereVFX != null)
         {
             Vector3 spherePosition = transform.position + sphereOffset;
             fogSphereVFX.SetVector3(vfxCenterParameterName, spherePosition);
         }
+    }
 
-        if (isInUI || isAnimationInLiftState)
-        {
-            animator.SetFloat("Speed", 0f);
-            animator.SetBool("IsRunning", false);
-            return;
-        }
+    #endregion
 
-        float desiredSpeed;
+    #region Stamina System
+
+    private void UpdateStamina()
+    {
         isMoving = moveInput.magnitude > 0.1f;
 
-        
+        RechargeStamina();
+        CheckStaminaDepletion();
+        CheckStaminaCooldown();
+
+        if (!isMoving && isRunningInput)
+        {
+            isRunningInput = false;
+        }
+
+        if (isRunningInput && isMoving && canRun)
+        {
+            DepleteStamina();
+        }
+    }
+
+    private void RechargeStamina()
+    {
         if (currentStamina < maxStamina && !isRunningInput)
         {
             float previousStamina = currentStamina;
@@ -622,8 +825,30 @@ public class MovJugador2 : MonoBehaviour
                 staminaWasEmpty = false;
             }
         }
+    }
 
-        
+    private void DepleteStamina()
+    {
+        if (isMoving)
+        {
+            currentStamina -= staminaDepletionRate * Time.deltaTime;
+            currentStamina = Mathf.Clamp(currentStamina, 0, maxStamina);
+
+            if (staminaUI != null)
+            {
+                staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
+            }
+
+            if (!wasRunning && staminaUI != null)
+            {
+                staminaUI.ShowStaminaBar();
+                wasRunning = true;
+            }
+        }
+    }
+
+    private void CheckStaminaDepletion()
+    {
         if (currentStamina <= 0 && canRun)
         {
             canRun = false;
@@ -636,10 +861,15 @@ public class MovJugador2 : MonoBehaviour
                 staminaUI.HideStaminaBar();
             }
 
-            if (animator != null) animator.SetBool(tiredAnimationBool, true);
+            if (animator != null)
+            {
+                animator.SetBool(tiredAnimationBool, true);
+            }
 
-            
-            if (fatigueFeedback != null) fatigueFeedback.SetExhausted(true);
+            if (fatigueFeedback != null)
+            {
+                fatigueFeedback.SetExhausted(true);
+            }
 
             if (audioSource != null && pantingSound != null)
             {
@@ -648,94 +878,109 @@ public class MovJugador2 : MonoBehaviour
                 audioSource.Play();
             }
         }
+    }
 
-        if (!isMoving && isRunningInput)
-        {
-            isRunningInput = false;
-        }
-
-        
+    private void CheckStaminaCooldown()
+    {
         if (!canRun)
         {
             cooldownTimer -= Time.deltaTime;
+
             if (cooldownTimer <= 0)
             {
-                canRun = true;
-                currentStamina = maxStamina;
-
-                if (animator != null) animator.SetBool(tiredAnimationBool, false);
-
-                
-                if (fatigueFeedback != null) fatigueFeedback.SetExhausted(false);
-
-                if (audioSource != null && audioSource.isPlaying && audioSource.clip == pantingSound)
-                {
-                    audioSource.Stop();
-                    audioSource.loop = false;
-                }
-
-                if (staminaUI != null)
-                {
-                    staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
-                }
-
-                if (staminaWasEmpty && staminaUI != null)
-                {
-                    staminaUI.OnStaminaFullyRecharged();
-                    staminaWasEmpty = false;
-                }
+                RecoverFromExhaustion();
             }
         }
+    }
 
-        
+    private void RecoverFromExhaustion()
+    {
+        canRun = true;
+        currentStamina = maxStamina;
+
+        if (animator != null)
+        {
+            animator.SetBool(tiredAnimationBool, false);
+        }
+
+        if (fatigueFeedback != null)
+        {
+            fatigueFeedback.SetExhausted(false);
+        }
+
+        if (audioSource != null && audioSource.isPlaying && audioSource.clip == pantingSound)
+        {
+            audioSource.Stop();
+            audioSource.loop = false;
+        }
+
+        if (staminaUI != null)
+        {
+            staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
+        }
+
+        if (staminaWasEmpty && staminaUI != null)
+        {
+            staminaUI.OnStaminaFullyRecharged();
+            staminaWasEmpty = false;
+        }
+    }
+
+    #endregion
+
+    #region Movement System
+
+    private void UpdateMovement()
+    {
+        float desiredSpeed = CalculateDesiredSpeed();
+        UpdateSpeedScalar(desiredSpeed);
+
+        Vector3 movement = CalculateMovementDirection();
+        ApplyGravity();
+        MoveCharacter(movement);
+        RotateCharacter(movement);
+
+        UpdateColliderAndAnimator();
+    }
+
+    private float CalculateDesiredSpeed()
+    {
         if (!canRun)
         {
-            desiredSpeed = 0f;
+            return 0f;
         }
         else if (isCrouching)
         {
-            desiredSpeed = crouchSpeed;
-
             if (wasRunning && staminaUI != null)
             {
                 staminaUI.HideStaminaBar();
                 wasRunning = false;
             }
+            return crouchSpeed;
         }
         else if (isRunningInput && isMoving && canRun)
         {
-            desiredSpeed = runSpeed;
-            if (isMoving)
-            {
-                currentStamina -= staminaDepletionRate * Time.deltaTime;
-                currentStamina = Mathf.Clamp(currentStamina, 0, maxStamina);
-
-                if (staminaUI != null)
-                {
-                    staminaUI.UpdateStaminaValue(currentStamina, maxStamina);
-                }
-
-                if (!wasRunning && staminaUI != null)
-                {
-                    staminaUI.ShowStaminaBar();
-                    wasRunning = true;
-                }
-            }
+            return runSpeed;
         }
         else
         {
-            desiredSpeed = moveSpeed;
-
             if (wasRunning && staminaUI != null)
             {
                 staminaUI.HideStaminaBar();
                 wasRunning = false;
             }
+            return moveSpeed;
         }
+    }
 
+    private void UpdateSpeedScalar(float desiredSpeed)
+    {
         float accel = currentSpeedScalar < desiredSpeed ? acceleration : deceleration;
         currentSpeedScalar = Mathf.MoveTowards(currentSpeedScalar, desiredSpeed, accel * Time.deltaTime);
+    }
 
+    private Vector3 CalculateMovementDirection()
+    {
         Vector3 movement = Vector3.zero;
 
         if (cameraTransform != null)
@@ -756,6 +1001,11 @@ public class MovJugador2 : MonoBehaviour
             movement = new Vector3(moveInput.x, 0, moveInput.y);
         }
 
+        return movement;
+    }
+
+    private void ApplyGravity()
+    {
         if (controller.isGrounded)
         {
             verticalVelocity.y = -2f;
@@ -764,16 +1014,25 @@ public class MovJugador2 : MonoBehaviour
         {
             verticalVelocity.y += gravity * Time.deltaTime;
         }
+    }
 
+    private void MoveCharacter(Vector3 movement)
+    {
         Vector3 finalMovement = (movement * currentSpeedScalar) + new Vector3(0, verticalVelocity.y, 0);
         controller.Move(finalMovement * Time.deltaTime);
+    }
 
+    private void RotateCharacter(Vector3 movement)
+    {
         if (movement != Vector3.zero)
         {
             Quaternion targetRotation = Quaternion.LookRotation(movement);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
+    }
 
+    private void UpdateColliderAndAnimator()
+    {
         if (flashlightController != null)
         {
             animator.SetBool("FlashlightOn", flashlightController.isFlashlightOn);
@@ -796,17 +1055,22 @@ public class MovJugador2 : MonoBehaviour
         }
     }
 
-    private void OnDrawGizmosSelected()
+    private void UpdateAnimatorToIdle()
     {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, collectionRange);
+        animator.SetFloat("Speed", 0f);
+        animator.SetBool("IsRunning", false);
     }
+
+    #endregion
+
+    #region Audio (Animation Events)
 
     public void PlayFootstepSound(int playerID)
     {
         if (controller != null && controller.isGrounded)
         {
             AudioClip clipToPlay;
+
             if (isRunningInput && canRun && !isCrouching)
             {
                 clipToPlay = runFootstepClip;
@@ -838,14 +1102,79 @@ public class MovJugador2 : MonoBehaviour
         PlayFootstepSound(2);
     }
 
-    
+    #endregion
 
-    
+    #region Public Control Methods
+
+    public void StopMovement()
+    {
+        this.enabled = false;
+        verticalVelocity = Vector3.zero;
+        moveInput = Vector2.zero;
+        isRunningInput = false;
+
+        if (staminaUI != null)
+        {
+            staminaUI.HideImmediate();
+        }
+        wasRunning = false;
+
+        if (fatigueFeedback != null)
+        {
+            fatigueFeedback.SetExhausted(false);
+        }
+
+        if (animator != null)
+        {
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("IsRunning", false);
+            animator.SetBool("IsCrouching", false);
+        }
+    }
+
+    public void AllowMovement()
+    {
+        this.enabled = true;
+    }
+
+    public void ResetMovementState()
+    {
+        this.enabled = true;
+        isInUI = false;
+
+        moveInput = Vector2.zero;
+        isRunningInput = false;
+        isCrouching = false;
+
+        verticalVelocity.y = -5f;
+        wasRunning = false;
+
+        if (fatigueFeedback != null)
+        {
+            fatigueFeedback.SetExhausted(false);
+        }
+
+        if (staminaUI != null)
+        {
+            staminaUI.HideImmediate();
+        }
+    }
+
+    public void ClearCurrentDoor(PuertaDobleAccion door)
+    {
+        if (currentDoor == door)
+        {
+            currentDoor = null;
+        }
+    }
+
+    #endregion
+
+    #region Public Properties
+
     public bool IsCrouchingState => isCrouching;
-
-    
     public bool IsRunningState => isRunningInput && isMoving && canRun && !isCrouching;
-
-    
     public Transform GetTransform() => this.transform;
+
+    #endregion
 }

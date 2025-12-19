@@ -130,6 +130,8 @@ MonoBehaviour:
   fragmentLayerName: Debris
   disableCollisionWithEnemy: 1
   removeFromNavMesh: 1
+  updateNavMeshOnDestroy: 1
+  navMeshUpdateRadius: 10
 --- !u!65 &5511500002076994956
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -158,7 +160,7 @@ NavMeshObstacle:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6477311470060402228}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Shape: 1
   m_Extents: {x: 100.00001, y: 200.00002, z: 15.000001}

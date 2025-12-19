@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(EnemySenses), typeof(EnemyMotor), typeof(EnemyVisuals))]
@@ -22,7 +22,7 @@ public class EnemyBrain : MonoBehaviour
     public float attackRange = 2.2f;
     [Tooltip("Tiempo de espera despues de terminar un ataque")]
     public float attackCooldown = 0.5f;
-public int attackDamage = 25;
+    public int attackDamage = 25;
 
     [Header("Patrulla")]
     public Transform[] patrolPoints;
@@ -31,6 +31,10 @@ public int attackDamage = 25;
 
     [Header("Debug")]
     public bool showDebugLogs = false;
+    public bool showWallDebug = true;
+
+    private float lastWallCheckTime = 0f;
+    private float wallCheckInterval = 0.3f;
 
     private enum State { Sleeping, Eating, Patrol, Investigating, Chasing, Attacking, Transitioning, Dead }
     [SerializeField] private State currentState;
@@ -110,25 +114,22 @@ public int attackDamage = 25;
 
     void HandleChasing()
     {
-        
         Transform currentTarget = senses.CurrentTarget;
         if (currentTarget != null)
         {
             var playerHealth = currentTarget.GetComponent<PlayerHealth>();
             var npcHealth = currentTarget.GetComponent<NPCHealth>();
-            
-            
+
             if (senses.CurrentNoisyObject != null && currentTarget == senses.CurrentNoisyObject)
             {
-                
                 motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 1f);
                 visuals.UpdateAnimationState(true);
                 return;
             }
-            
-            bool isDead = (playerHealth != null && playerHealth.IsDead) || 
+
+            bool isDead = (playerHealth != null && playerHealth.IsDead) ||
                          (npcHealth != null && npcHealth.IsDead);
-            
+
             if (isDead)
             {
                 senses.ForgetTarget();
@@ -137,23 +138,28 @@ public int attackDamage = 25;
             }
         }
 
-        if (senses.CheckForWallInFront())
+        if (Time.time - lastWallCheckTime > wallCheckInterval)
         {
-            StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
-            return;
-        }
+            lastWallCheckTime = Time.time;
 
-        if (senses.HasTargetOfInterest && senses.CheckWallInPathToTarget())
-        {
-            StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
-            return;
+            if (senses.CheckForWallInFront())
+            {
+
+                StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
+                return;
+            }
+
+            if (senses.HasTargetOfInterest && senses.CheckWallInPathToTarget())
+            {
+
+                StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
+                return;
+            }
         }
 
         if (senses.HasTargetOfInterest)
         {
-            
             SelectClosestAliveTarget();
-
             motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, attackRange - 0.5f);
             visuals.UpdateAnimationState(false);
         }
@@ -161,9 +167,10 @@ public int attackDamage = 25;
         if (senses.HasTargetOfInterest)
         {
             bool hasCharacterTarget = senses.CurrentPlayer != null || senses.CurrentNPCTarget != null;
-            if (hasCharacterTarget && Vector3.Distance(transform.position, senses.TargetPositionOfInterest) <= attackRange && !senses.CheckForWallInFront())
+            if (hasCharacterTarget &&
+                Vector3.Distance(transform.position, senses.TargetPositionOfInterest) <= attackRange &&
+                !senses.CheckForWallInFront())
             {
-                
                 StartCoroutine(AttackTargetRoutine());
             }
         }
@@ -200,8 +207,6 @@ public int attackDamage = 25;
         }
     }
 
-    
-
     IEnumerator WakeUpAndRoarRoutine()
     {
         currentState = State.Transitioning;
@@ -221,11 +226,22 @@ public int attackDamage = 25;
 
     IEnumerator AttackWallRoutine(GameObject wall)
     {
+        if (wall == null)
+        {
+
+            currentState = State.Chasing;
+            yield break;
+        }
+
+
+
         currentState = State.Attacking;
-        motor.MoveTo(wall.transform.position, walkSpeed, 0.8f);
+        Vector3 wallPosition = wall.transform.position;
+
+        motor.MoveTo(wallPosition, walkSpeed, 1.2f);
 
         float timer = 0f;
-        while (wall != null && Vector3.Distance(transform.position, wall.transform.position) > 1.5f && timer < 3f)
+        while (wall != null && Vector3.Distance(transform.position, wallPosition) > 1.8f && timer < 4f)
         {
             timer += Time.deltaTime;
             visuals.UpdateAnimationState(false);
@@ -233,19 +249,42 @@ public int attackDamage = 25;
         }
 
         motor.Stop();
-        if (wall != null) motor.RotateTowards(wall.transform.position);
-        yield return null;
+        if (wall != null)
+        {
+            motor.RotateTowards(wallPosition);
+            yield return new WaitForSeconds(0.2f);
+        }
+
+
 
         visuals.TriggerAttack(3);
 
         float impactTimer = 0f;
-        while (!visuals.AnimImpactReceived && impactTimer < 2.0f)
+        while (!visuals.AnimImpactReceived && impactTimer < 2.5f)
         {
             impactTimer += Time.deltaTime;
             yield return null;
         }
 
-        TryDestroyWall(wall);
+        if (wall != null)
+        {
+
+            TryDestroyWall(wall);
+
+            yield return new WaitForSeconds(0.3f);
+
+            if (senses.HasTargetOfInterest)
+            {
+                motor.Stop();
+                yield return null;
+                motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, attackRange - 0.5f);
+
+            }
+        }
+        else
+        {
+
+        }
 
         float finishTimer = 0f;
         while (!visuals.AnimFinishedReceived && finishTimer < 1.5f)
@@ -255,8 +294,11 @@ public int attackDamage = 25;
         }
 
         visuals.StopAttack();
+        senses.CurrentWallTarget = null;
         currentState = State.Chasing;
         yield return new WaitForSeconds(attackCooldown);
+
+
     }
 
     IEnumerator AttackTargetRoutine()
@@ -284,7 +326,7 @@ public int attackDamage = 25;
 
         float safetyTimer = 0f;
         bool impactHappened = false;
-        
+
         while (!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived && safetyTimer < 2.0f)
         {
             safetyTimer += Time.deltaTime;
@@ -298,14 +340,12 @@ public int attackDamage = 25;
             if (visuals.AnimImpactReceived) impactHappened = true;
             yield return null;
         }
-        
-        
+
         visuals.EnableRightHand();
         visuals.EnableLeftHand();
         yield return new WaitForSeconds(0.2f);
         visuals.StopAttack();
 
-        
         if ((pHealth != null && !pHealth.IsDead) || (nHealth != null && !nHealth.IsDead))
         {
             if (impactHappened || visuals.AnimImpactReceived || visuals.AnimFinishedReceived)
@@ -314,8 +354,7 @@ public int attackDamage = 25;
                 if (nHealth != null && !nHealth.IsDead) nHealth.TakeDamage(attackDamage);
             }
         }
-        
-        
+
         float finishTimer = 0f;
         while (!visuals.AnimFinishedReceived && finishTimer < 1.5f)
         {
@@ -333,7 +372,6 @@ public int attackDamage = 25;
         currentState = State.Chasing;
         yield return new WaitForSeconds(attackCooldown);
 
-        
         SelectClosestAliveTarget();
     }
 
@@ -361,18 +399,14 @@ public int attackDamage = 25;
         {
             timer += Time.deltaTime;
 
-            
             if (motor.GetRemainingDistance() > 0.15f)
             {
                 visuals.UpdateAnimationState(true);
-                
                 visuals.SetInvestigatingMode(false);
             }
             else
             {
-                
                 motor.Stop();
-                
                 visuals.UpdateAnimationState(true);
                 yield return StartCoroutine(visuals.RunScanCycles(4));
                 break;
@@ -380,7 +414,6 @@ public int attackDamage = 25;
             yield return null;
         }
 
-        
         visuals.SetInvestigatingMode(false);
         senses.ForgetTarget();
         if (isInvestigatingObjectNoise)
@@ -395,7 +428,6 @@ public int attackDamage = 25;
         isInvestigatingObjectNoise = false;
     }
 
-    
     void SelectClosestAliveTarget()
     {
         Transform best = null;
@@ -448,11 +480,10 @@ public int attackDamage = 25;
         isWaitingAtPatrol = false;
     }
 
-    
-    void WakeUp() 
-    { 
-        hasAwakened = true; 
-        visuals.SetPassiveState(0); 
+    void WakeUp()
+    {
+        hasAwakened = true;
+        visuals.SetPassiveState(0);
         if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
         {
             StartCoroutine(WakeUpQuietRoutine());
@@ -462,34 +493,62 @@ public int attackDamage = 25;
             StartCoroutine(WakeUpAndRoarRoutine());
         }
     }
-    void GoToNextPatrolPoint() { if (patrolPoints.Length == 0) return; patrolIndex = (patrolIndex + 1) % patrolPoints.Length; motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.1f); }
-    void TryDestroyWall(GameObject w) { if (w) { var s = w.GetComponent<Wall_Destruction>(); if (s) { if (!w.activeSelf) w.SetActive(true); s.Explode(w.transform.position, transform.forward); visuals.PlayWallBreakSound(); DialogueManager.ShowEnemyWallBreakDialogue(); } } }
-    void HandleDialogueFeedback() 
-    { 
-        if (!senses.HasTargetOfInterest) return; 
+
+    void GoToNextPatrolPoint()
+    {
+        if (patrolPoints.Length == 0) return;
+        patrolIndex = (patrolIndex + 1) % patrolPoints.Length;
+        motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.1f);
+    }
+
+    void TryDestroyWall(GameObject w)
+    {
+        if (w)
+        {
+            var s = w.GetComponent<Wall_Destruction>();
+            if (s)
+            {
+                if (!w.activeSelf) w.SetActive(true);
+                s.Explode(w.transform.position, transform.forward);
+                visuals.PlayWallBreakSound();
+                DialogueManager.ShowEnemyWallBreakDialogue();
+
+
+            }
+            else
+            {
+
+            }
+        }
+    }
+
+    void HandleDialogueFeedback()
+    {
+        if (!senses.HasTargetOfInterest) return;
         Transform currentTarget = senses.CurrentTarget;
         if (currentTarget == null) return;
-        
-        if (!hasShownFirstDetection) 
-        { 
-            hasShownFirstDetection = true; 
-            lastReDetectionTime = Time.time; 
-        } 
-        else if (Time.time - lastReDetectionTime > 2.0f && currentState == State.Patrol) 
-        { 
-            DialogueManager.ShowEnemyDetectedAgainDialogue(currentTarget.gameObject); 
-            lastReDetectionTime = Time.time; 
-        } 
+
+        if (!hasShownFirstDetection)
+        {
+            hasShownFirstDetection = true;
+            lastReDetectionTime = Time.time;
+        }
+        else if (Time.time - lastReDetectionTime > 2.0f && currentState == State.Patrol)
+        {
+            DialogueManager.ShowEnemyDetectedAgainDialogue(currentTarget.gameObject);
+            lastReDetectionTime = Time.time;
+        }
     }
-    public void OnEnemyDeath() 
-    { 
+
+    public void OnEnemyDeath()
+    {
         senses.ForgetTarget();
         visuals.StopAttack();
         visuals.SetInvestigatingMode(false);
-        motor.Stop(); 
-        StopAllCoroutines(); 
-        if (cameraController) cameraController.StopTrackingEnemy(); 
-        currentState = State.Dead; 
+        motor.Stop();
+        StopAllCoroutines();
+        if (cameraController) cameraController.StopTrackingEnemy();
+        currentState = State.Dead;
     }
 
     IEnumerator WakeUpQuietRoutine()
