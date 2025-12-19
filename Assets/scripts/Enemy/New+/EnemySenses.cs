@@ -14,11 +14,13 @@ public class EnemySenses : MonoBehaviour
 
     [Header("Configuracion de Audio")]
     [Range(0.5f, 3.0f)] public float audioSensitivity = 1.0f;
+    [Tooltip("Rango maximo de deteccion por sonido")]
     public float maxHearingDistance = 20f;
     public float minDetectionRadius = 1.5f;
     [Range(0.0f, 1.0f)] public float detectionThreshold = 0.15f;
 
     [Header("Deteccion de Proximidad")]
+    [Tooltip("NOTA: El enemigo es CIEGO, solo detecta por SONIDO. Esta opcion esta deshabilitada.")]
     public float proximityDetectionRadius = 3.5f;
     [Range(1.0f, 3.0f)] public float closeRangeBoost = 2.0f;
 
@@ -63,14 +65,28 @@ public class EnemySenses : MonoBehaviour
         float maxAudioStrength = 0f;
         bool isTargetNPC = false;
 
-        void CheckTarget(Transform target, float noiseRadius, bool isNPC)
+        void CheckTarget(Transform target, float noiseRadius, float idleNoiseRadius, bool isNPC)
         {
             if (target == null) return;
 
             float dist = Vector3.Distance(transform.position, target.position);
-            bool isInProximity = dist <= proximityDetectionRadius;
+            
+            
+            
+            bool isEmittingActiveNoise = noiseRadius > idleNoiseRadius + 0.1f;
+            
+            
+            if (!isEmittingActiveNoise)
+            {
+                return;
+            }
+            
+            
             float strength = CalculateAudioStrength(target, noiseRadius, dist);
-            bool shouldDetect = isInProximity || (strength > detectionThreshold);
+            
+            
+            
+            bool shouldDetect = strength > detectionThreshold;
 
             if (shouldDetect)
             {
@@ -95,11 +111,13 @@ public class EnemySenses : MonoBehaviour
             if (noise != null)
             {
                 float effectiveRadius = Mathf.Max(noise.currentNoiseRadius, 1.5f);
-                CheckTarget(player, effectiveRadius, false);
+                float idleRadius = noise.idleNoiseRadius;
+                CheckTarget(player, effectiveRadius, idleRadius, false);
             }
             else
             {
-                CheckTarget(player, 2.0f, false);
+                
+                CheckTarget(player, 2.0f, 0f, false);
             }
         }
 
@@ -113,11 +131,13 @@ public class EnemySenses : MonoBehaviour
             if (noise != null)
             {
                 float effectiveRadius = Mathf.Max(noise.currentNoiseRadius, 1.5f);
-                CheckTarget(npc, effectiveRadius, true);
+                float idleRadius = noise.idleNoiseRadius;
+                CheckTarget(npc, effectiveRadius, idleRadius, true);
             }
             else
             {
-                CheckTarget(npc, 2.0f, true);
+                
+                CheckTarget(npc, 2.0f, 0f, true);
             }
         }
 
@@ -125,19 +145,55 @@ public class EnemySenses : MonoBehaviour
 
         if (bestTarget != null)
         {
-            if (isTargetNPC)
+            
+            bool stillMakingNoise = false;
+            PlayerNoiseEmitter playerNoise = bestTarget.GetComponent<PlayerNoiseEmitter>();
+            NPCNoiseEmitter npcNoise = bestTarget.GetComponent<NPCNoiseEmitter>();
+            
+            if (playerNoise != null)
             {
-                CurrentNPCTarget = bestTarget;
-                CurrentPlayer = null;
+                stillMakingNoise = playerNoise.currentNoiseRadius > playerNoise.idleNoiseRadius + 0.1f;
+            }
+            else if (npcNoise != null)
+            {
+                stillMakingNoise = npcNoise.currentNoiseRadius > npcNoise.idleNoiseRadius + 0.1f;
+            }
+            
+            if (stillMakingNoise)
+            {
+                if (isTargetNPC)
+                {
+                    CurrentNPCTarget = bestTarget;
+                    CurrentPlayer = null;
+                }
+                else
+                {
+                    CurrentPlayer = bestTarget;
+                    CurrentNPCTarget = null;
+                }
+                TargetPositionOfInterest = bestTarget.position;
+                HasTargetOfInterest = true;
+                timeSinceLastHeard = 0f;
             }
             else
             {
-                CurrentPlayer = bestTarget;
-                CurrentNPCTarget = null;
+                
+                if (CurrentPlayer == bestTarget) CurrentPlayer = null;
+                if (CurrentNPCTarget == bestTarget) CurrentNPCTarget = null;
+                
+                if (CurrentPlayer == null && CurrentNPCTarget == null)
+                {
+                    HasTargetOfInterest = false;
+                }
+                
+                timeSinceLastHeard += Time.deltaTime;
+                if (timeSinceLastHeard > memoryDuration)
+                {
+                    HasTargetOfInterest = false;
+                    CurrentPlayer = null;
+                    CurrentNPCTarget = null;
+                }
             }
-            TargetPositionOfInterest = bestTarget.position;
-            HasTargetOfInterest = true;
-            timeSinceLastHeard = 0f;
         }
         else
         {
@@ -268,21 +324,19 @@ public class EnemySenses : MonoBehaviour
 
     private void ProcessObjectNoiseDetection()
     {
+        
         if (HasTargetOfInterest && (CurrentPlayer != null || CurrentNPCTarget != null))
         {
             CurrentNoisyObject = null;
             return;
         }
 
+        
         if (objectNoiseDetection != null && objectNoiseDetection.HasNoisyObjectNearby())
         {
             if (objectNoiseDetection.GetLoudestObject(out Transform noisyObject, out Vector3 objectPosition))
             {
-                if (noisyObject != null && IsObjectIgnored(noisyObject))
-                {
-                    
-                }
-                else
+                if (noisyObject != null && !IsObjectIgnored(noisyObject))
                 {
                     CurrentNoisyObject = noisyObject;
                     TargetPositionOfInterest = objectPosition;
@@ -293,7 +347,34 @@ public class EnemySenses : MonoBehaviour
             }
         }
 
-        if (CurrentPlayer == null && CurrentNPCTarget == null)
+        
+        if (CurrentNoisyObject != null)
+        {
+            
+            bool stillLoudest = false;
+            if (objectNoiseDetection != null && objectNoiseDetection.HasNoisyObjectNearby())
+            {
+                if (objectNoiseDetection.GetLoudestObject(out Transform loudest, out Vector3 pos))
+                {
+                    if (loudest == CurrentNoisyObject)
+                    {
+                        stillLoudest = true;
+                        TargetPositionOfInterest = pos; 
+                    }
+                }
+            }
+            
+            if (!stillLoudest)
+            {
+                
+                CurrentNoisyObject = null;
+                if (CurrentPlayer == null && CurrentNPCTarget == null)
+                {
+                    HasTargetOfInterest = false;
+                }
+            }
+        }
+        else if (CurrentPlayer == null && CurrentNPCTarget == null && !HasTargetOfInterest)
         {
             CurrentNoisyObject = null;
         }

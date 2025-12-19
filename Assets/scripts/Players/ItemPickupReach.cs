@@ -19,29 +19,34 @@ public class ItemPickupReach : MonoBehaviour
     [SerializeField] private Transform handBone;
 
     [Header("Animation Settings")]
-    [Tooltip("Duracion de la animacion de alcanzar")]
-    [SerializeField] private float reachDuration = 0.3f;
+    [Tooltip("Duracin de la animacin de alcanzar")]
+    [SerializeField] private float reachDuration = 0.5f;
 
-    [Tooltip("Duracion de la animacion de regresar")]
-    [SerializeField] private float returnDuration = 0.25f;
+    [Tooltip("Duracin de la animacin de regresar")]
+    [SerializeField] private float returnDuration = 0.35f;
 
-    [Tooltip("Curva de animacion para suavizar el movimiento")]
+    [Tooltip("Curva de animacin para suavizar el movimiento")]
     [SerializeField] private AnimationCurve reachCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
     [Tooltip("Offset desde el centro del objeto hacia donde alcanzar")]
     [SerializeField] private Vector3 grabOffset = new Vector3(0, 0.1f, 0);
 
+    [Tooltip("Distancia mnima para considerar que la mano alcanz el objeto")]
+    [SerializeField] private float grabThreshold = 0.15f;
+
     [Header("Advanced Settings")]
-    [Tooltip("Distancia maxima para activar la animacion")]
+    [Tooltip("Distancia mxima para activar la animacin")]
     [SerializeField] private float maxReachDistance = 1.5f;
 
-    [Tooltip("Si esta activa la animacion de alcanzar")]
+    [Tooltip("Si est activa la animacin de alcanzar")]
     [SerializeField] private bool enableReachAnimation = true;
 
     private Vector3 restPosition;
     private Quaternion restRotation;
     private bool isReaching = false;
     private Coroutine currentReachCoroutine;
+    private GameObject currentTargetObject;
+    private System.Action<GameObject> onGrabCallback;
 
     private void Start()
     {
@@ -63,14 +68,22 @@ public class ItemPickupReach : MonoBehaviour
     
     
     
-    public void ReachForItem(GameObject targetObject)
+    
+    public void ReachForItem(GameObject targetObject, System.Action<GameObject> onGrabAction = null)
     {
         if (!enableReachAnimation || targetObject == null || handIKTarget == null)
+        {
+            
+            onGrabAction?.Invoke(targetObject);
             return;
+        }
 
         float distance = Vector3.Distance(transform.position, targetObject.transform.position);
         if (distance > maxReachDistance)
+        {
+            onGrabAction?.Invoke(targetObject);
             return;
+        }
 
         
         if (currentReachCoroutine != null)
@@ -78,6 +91,8 @@ public class ItemPickupReach : MonoBehaviour
             StopCoroutine(currentReachCoroutine);
         }
 
+        currentTargetObject = targetObject;
+        onGrabCallback = onGrabAction;
         Vector3 targetPosition = targetObject.transform.position + grabOffset;
         currentReachCoroutine = StartCoroutine(ReachCoroutine(targetPosition));
     }
@@ -110,6 +125,8 @@ public class ItemPickupReach : MonoBehaviour
         Vector3 directionToTarget = (worldTargetPosition - handIKTarget.position).normalized;
         Quaternion targetRotation = Quaternion.LookRotation(directionToTarget, Vector3.up);
 
+        bool hasGrabbed = false;
+
         while (elapsed < reachDuration)
         {
             elapsed += Time.deltaTime;
@@ -126,6 +143,19 @@ public class ItemPickupReach : MonoBehaviour
                 handReachRig.weight = Mathf.Lerp(0f, 1f, curveValue);
             }
 
+            
+            if (!hasGrabbed && Vector3.Distance(handIKTarget.position, worldTargetPosition) <= grabThreshold)
+            {
+                hasGrabbed = true;
+
+                
+                if (onGrabCallback != null && currentTargetObject != null)
+                {
+                    onGrabCallback.Invoke(currentTargetObject);
+                    onGrabCallback = null;
+                }
+            }
+
             yield return null;
         }
 
@@ -136,6 +166,13 @@ public class ItemPickupReach : MonoBehaviour
         if (handReachRig != null)
         {
             handReachRig.weight = 1f;
+        }
+
+        
+        if (!hasGrabbed && onGrabCallback != null && currentTargetObject != null)
+        {
+            onGrabCallback.Invoke(currentTargetObject);
+            onGrabCallback = null;
         }
 
         currentReachCoroutine = null;
@@ -194,13 +231,14 @@ public class ItemPickupReach : MonoBehaviour
     
     public void OnItemCollected()
     {
+        currentTargetObject = null;
         
         StartCoroutine(DelayedReturn());
     }
 
     private IEnumerator DelayedReturn()
     {
-        yield return new WaitForSeconds(0.1f);
+        yield return new WaitForSeconds(0.15f);
         ReturnToRest();
     }
 
@@ -221,11 +259,17 @@ public class ItemPickupReach : MonoBehaviour
     {
         if (handIKTarget != null)
         {
+            
             Gizmos.color = Color.green;
             Gizmos.DrawWireSphere(handIKTarget.position, 0.05f);
 
+            
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(transform.position, maxReachDistance);
+
+            
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(handIKTarget.position, grabThreshold);
         }
     }
 }

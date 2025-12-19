@@ -44,7 +44,7 @@ public class MovJugador1 : MonoBehaviour
     [SerializeField] private InputActionReference collectAction;
 
     [Header("Pickup Animation")]
-    [Tooltip("Sistema de animacion procedural para alcanzar objetos")]
+    [Tooltip("Sistema de animacin procedural para alcanzar objetos")]
     [SerializeField] private ItemPickupReach pickupReach;
 
     [Header("Door Lift Settings")]
@@ -440,10 +440,14 @@ public class MovJugador1 : MonoBehaviour
         {
             if (pickupReach != null)
             {
-                pickupReach.ReachForItem(closestItem);
+                
+                pickupReach.ReachForItem(closestItem, OnHandReachedItem);
             }
-
-            StartCoroutine(CollectAfterReach(closestItem));
+            else
+            {
+                
+                CollectItem(closestItem);
+            }
         }
     }
 
@@ -487,6 +491,60 @@ public class MovJugador1 : MonoBehaviour
         return obj.GetComponent<PickableItem>() != null ||
                obj.GetComponent<KeyCard>() != null ||
                obj.GetComponent<CollectableItem>() != null;
+    }
+
+    
+    
+    
+    private void OnHandReachedItem(GameObject item)
+    {
+        if (item == null) return;
+        CollectItem(item);
+    }
+
+    
+    
+    
+    private void CollectItem(GameObject item)
+    {
+        PickableItem pickable = item.GetComponent<PickableItem>();
+        if (pickable != null)
+        {
+            pickable.Collect(gameObject);
+            popupBillboard?.ShowMessage($"I found the {pickable.DisplayName}!", 2f);
+
+            if (pickupReach != null)
+            {
+                pickupReach.OnItemCollected();
+            }
+            return;
+        }
+
+        KeyCard keyCard = item.GetComponent<KeyCard>();
+        if (keyCard != null)
+        {
+            keyCard.Collect(gameObject);
+            popupBillboard?.ShowMessage($"I found the {keyCard.name}!", 2f);
+
+            if (pickupReach != null)
+            {
+                pickupReach.OnItemCollected();
+            }
+            return;
+        }
+
+        CollectableItem collectable = item.GetComponent<CollectableItem>();
+        if (collectable != null)
+        {
+            collectable.Collect(gameObject);
+            popupBillboard?.ShowMessage($"I found the {collectable.ItemID}!", 2f);
+
+            if (pickupReach != null)
+            {
+                pickupReach.OnItemCollected();
+            }
+            return;
+        }
     }
 
     private IEnumerator CollectAfterReach(GameObject item)

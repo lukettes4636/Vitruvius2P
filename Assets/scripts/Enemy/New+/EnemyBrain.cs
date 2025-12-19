@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(EnemySenses), typeof(EnemyMotor), typeof(EnemyVisuals))]
@@ -19,15 +19,22 @@ public class EnemyBrain : MonoBehaviour
     public float investigationSpeed = 1.8f;
 
     [Header("Combate")]
+    [Tooltip("Rango de ataque - distancia a la que puede atacar")]
     public float attackRange = 2.2f;
     [Tooltip("Tiempo de espera despues de terminar un ataque")]
     public float attackCooldown = 0.5f;
     public int attackDamage = 25;
+    [Tooltip("Rango de deteccion para verificar si hay objetivo cerca antes de atacar")]
+    public float detectionRange = 2.5f;
 
     [Header("Patrulla")]
     public Transform[] patrolPoints;
     public float patrolWaitTime = 1f;
     private int patrolIndex = 0;
+
+    [Header("Investigacion")]
+    [Tooltip("Tiempo que el enemigo investiga en un punto sin recibir sonido")]
+    public float investigationDuration = 3.0f;
 
     [Header("Debug")]
     public bool showDebugLogs = false;
@@ -41,11 +48,21 @@ public class EnemyBrain : MonoBehaviour
 
     private bool hasAwakened = false;
     private bool isWaitingAtPatrol = false;
-    private float alertTimer = 0f;
     private bool hasShownFirstDetection = false;
     private float lastReDetectionTime = -999f;
     private Vector3 preInvestigatePosition;
     private bool isInvestigatingObjectNoise = false;
+    private Coroutine investigationCoroutine;
+    private float investigationTimer = 0f;
+    private bool hasOtherTargetsInRange = false;
+    private bool isInvestigatingStanding = false; 
+
+    public Transform GetCurrentTarget()
+    {
+        if (senses.CurrentPlayer != null) return senses.CurrentPlayer;
+        if (senses.CurrentNPCTarget != null) return senses.CurrentNPCTarget;
+        return senses.CurrentNoisyObject;
+    }
 
     void Start()
     {
@@ -75,7 +92,8 @@ public class EnemyBrain : MonoBehaviour
                 currentState = State.Patrol;
                 hasAwakened = true;
                 visuals.SetPassiveState(0);
-                StartCoroutine(WakeUpAndRoarRoutine());
+                
+                GoToNextPatrolPoint();
                 break;
         }
     }
@@ -83,11 +101,16 @@ public class EnemyBrain : MonoBehaviour
     void Update()
     {
         if (currentState == State.Dead) return;
+
         senses.Tick();
 
+        
         if (currentState == State.Sleeping || currentState == State.Eating)
         {
-            if (senses.HasTargetOfInterest) WakeUp();
+            if (senses.HasTargetOfInterest)
+            {
+                WakeUp();
+            }
             return;
         }
 
@@ -102,108 +125,337 @@ public class EnemyBrain : MonoBehaviour
                 HandlePatrol();
                 break;
             case State.Investigating:
-                if (senses.HasTargetOfInterest && senses.CurrentAlertLevel > 0.5f)
-                {
-                    StopAllCoroutines();
-                    currentState = State.Chasing;
-                }
+                HandleInvestigating();
                 break;
         }
+
         HandleDialogueFeedback();
     }
 
     void HandleChasing()
     {
-        Transform currentTarget = senses.CurrentTarget;
+        Transform currentTarget = GetCurrentTarget();
+
+        
         if (currentTarget != null)
         {
-            var playerHealth = currentTarget.GetComponent<PlayerHealth>();
-            var npcHealth = currentTarget.GetComponent<NPCHealth>();
+            PlayerHealth playerHealth = currentTarget.GetComponent<PlayerHealth>();
+            NPCHealth npcHealth = currentTarget.GetComponent<NPCHealth>();
 
+            
             if (senses.CurrentNoisyObject != null && currentTarget == senses.CurrentNoisyObject)
             {
-                motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 1f);
+                
+                if (senses.CurrentNoisyObject == null || !senses.objectNoiseDetection.HasNoisyObjectNearby())
+                {
+                    
+                    senses.ForgetTarget();
+                    if (currentState != State.Investigating)
+                    {
+                        StartCoroutine(InvestigateRoutine(senses.TargetPositionOfInterest));
+                    }
+                    return;
+                }
+
+                
+                senses.TargetPositionOfInterest = senses.CurrentNoisyObject.position;
+                
+                motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 0.2f);
                 visuals.UpdateAnimationState(true);
+
+                
+                if (motor.GetRemainingDistance() <= 0.3f)
+                {
+                    if (currentState != State.Investigating)
+                    {
+                        StartCoroutine(InvestigateObjectRoutine());
+                    }
+                }
                 return;
             }
 
-            bool isDead = (playerHealth != null && playerHealth.IsDead) ||
-                         (npcHealth != null && npcHealth.IsDead);
+            bool targetIsDead = (playerHealth != null && playerHealth.IsDead) || (npcHealth != null && npcHealth.IsDead);
 
-            if (isDead)
+            if (targetIsDead)
             {
-                senses.ForgetTarget();
-                StartCoroutine(ReturnToPatrolRoutine());
+                
+                CheckForOtherTargetsInRange();
+                
+                if (hasOtherTargetsInRange)
+                {
+                    
+
+                    senses.ForgetTarget();
+                    SelectClosestAliveTarget();
+                    if (senses.HasTargetOfInterest)
+                    {
+                        
+                        if (senses.CurrentNoisyObject != null)
+                        {
+                            StartCoroutine(InvestigateObjectRoutine());
+                        }
+                        else
+                        {
+                            
+                            currentState = State.Chasing;
+                        }
+                    }
+                }
+                else
+                {
+                    
+
+                    senses.ForgetTarget();
+                    StartCoroutine(InvestigateAfterKillRoutine());
+                }
                 return;
             }
         }
 
+        
         if (Time.time - lastWallCheckTime > wallCheckInterval)
         {
             lastWallCheckTime = Time.time;
-
-            if (senses.CheckForWallInFront())
+            if (senses.CheckForWallInFront() || (senses.HasTargetOfInterest && senses.CheckWallInPathToTarget()))
             {
-
-                StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
-                return;
-            }
-
-            if (senses.HasTargetOfInterest && senses.CheckWallInPathToTarget())
-            {
-
                 StartCoroutine(AttackWallRoutine(senses.CurrentWallTarget));
                 return;
             }
         }
 
+        
         if (senses.HasTargetOfInterest)
         {
             SelectClosestAliveTarget();
+            
+            
+            if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
+            {
+                
+                if (senses.CurrentNoisyObject == null || !senses.objectNoiseDetection.HasNoisyObjectNearby())
+                {
+                    
+                    senses.ForgetTarget();
+                    if (currentState != State.Investigating)
+                    {
+                        StartCoroutine(InvestigateRoutine(senses.TargetPositionOfInterest));
+                    }
+                    return;
+                }
+
+                
+                senses.TargetPositionOfInterest = senses.CurrentNoisyObject.position;
+                
+                motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 0.2f);
+                visuals.UpdateAnimationState(true);
+
+                
+                if (motor.GetRemainingDistance() <= 0.3f)
+                {
+                    if (currentState != State.Investigating)
+                    {
+                        StartCoroutine(InvestigateObjectRoutine());
+                    }
+                }
+                return;
+            }
+
+            
             motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, attackRange - 0.5f);
             visuals.UpdateAnimationState(false);
-        }
 
-        if (senses.HasTargetOfInterest)
-        {
-            bool hasCharacterTarget = senses.CurrentPlayer != null || senses.CurrentNPCTarget != null;
-            if (hasCharacterTarget &&
-                Vector3.Distance(transform.position, senses.TargetPositionOfInterest) <= attackRange &&
-                !senses.CheckForWallInFront())
+            
+            bool isCharacter = senses.CurrentPlayer != null || senses.CurrentNPCTarget != null;
+            if (isCharacter)
             {
-                StartCoroutine(AttackTargetRoutine());
+                Transform actualTarget = GetCurrentTarget();
+                if (actualTarget != null)
+                {
+                    
+                    float distanceToTarget = Vector3.Distance(transform.position, actualTarget.position);
+                    
+                    
+                    bool isTargetMakingNoise = false;
+                    PlayerNoiseEmitter playerNoise = actualTarget.GetComponent<PlayerNoiseEmitter>();
+                    NPCNoiseEmitter npcNoise = actualTarget.GetComponent<NPCNoiseEmitter>();
+                    
+                    if (playerNoise != null)
+                    {
+                        isTargetMakingNoise = playerNoise.currentNoiseRadius > playerNoise.idleNoiseRadius + 0.1f;
+                    }
+                    else if (npcNoise != null)
+                    {
+                        isTargetMakingNoise = npcNoise.currentNoiseRadius > npcNoise.idleNoiseRadius + 0.1f;
+                    }
+                    
+                    
+                    if (distanceToTarget <= attackRange && isTargetMakingNoise && !senses.CheckForWallInFront())
+                    {
+                        StartCoroutine(AttackTargetRoutine());
+                    }
+                }
             }
         }
         else
         {
-            DialogueManager.ShowEnemyChaseEndedDialogue();
-            StartCoroutine(InvestigateRoutine(senses.TargetPositionOfInterest));
+            
+            
+            if (currentState != State.Investigating && senses.TargetPositionOfInterest != Vector3.zero)
+            {
+                StartCoroutine(InvestigateRoutine(senses.TargetPositionOfInterest));
+            }
+            else if (currentState == State.Chasing)
+            {
+                
+                senses.ForgetTarget();
+                StartCoroutine(ReturnToPatrolRoutine());
+            }
         }
     }
 
     void HandlePatrol()
     {
+        
         if (senses.HasTargetOfInterest)
         {
+            currentState = State.Transitioning;
+
+            
             if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
             {
                 StartCoroutine(WakeUpQuietRoutine());
             }
             else
             {
+                
                 StartCoroutine(WakeUpAndRoarRoutine());
             }
             return;
         }
+
+        
         if (patrolPoints.Length == 0) return;
 
         if (motor.GetRemainingDistance() <= 0.2f)
         {
-            if (!isWaitingAtPatrol) StartCoroutine(PatrolWaitRoutine());
+            if (!isWaitingAtPatrol)
+            {
+                StartCoroutine(PatrolWaitRoutine());
+            }
         }
         else
         {
             visuals.UpdateAnimationState(true);
+        }
+    }
+
+    void HandleInvestigating()
+    {
+        
+        if (senses.HasTargetOfInterest)
+        {
+            if (investigationCoroutine != null)
+            {
+                StopCoroutine(investigationCoroutine);
+                investigationCoroutine = null;
+            }
+            visuals.SetInvestigatingMode(false);
+            
+            
+            if (senses.CurrentPlayer != null || senses.CurrentNPCTarget != null)
+            {
+                
+                if (!isInvestigatingStanding)
+                {
+                    StartCoroutine(ReactToPlayerNoiseWhileInvestigating());
+                }
+                else
+                {
+                    
+                    currentState = State.Chasing;
+                }
+            }
+            
+            else if (senses.CurrentNoisyObject != null)
+            {
+                
+                if (isInvestigatingStanding)
+                {
+                    
+                    currentState = State.Chasing;
+                }
+                else
+                {
+                    
+                    currentState = State.Chasing;
+                }
+            }
+        }
+    }
+
+    IEnumerator ReactToPlayerNoiseWhileInvestigating()
+    {
+        currentState = State.Transitioning;
+        motor.Stop();
+        visuals.SetInvestigatingMode(false);
+        
+        
+        if (!isInvestigatingStanding)
+        {
+            visuals.TriggerGetUp();
+            yield return new WaitUntil(() => visuals.AnimFinishedReceived);
+        }
+        
+        
+        visuals.TriggerRoar();
+        visuals.PlayRoarSound();
+        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
+        
+        
+        isInvestigatingStanding = true;
+        currentState = State.Chasing;
+    }
+
+    void CheckForOtherTargetsInRange()
+    {
+        hasOtherTargetsInRange = false;
+
+        
+        foreach (Transform player in senses.playerTargets)
+        {
+            if (player == null) continue;
+            PlayerHealth health = player.GetComponent<PlayerHealth>();
+            if (health != null && !health.IsDead)
+            {
+                float distance = Vector3.Distance(transform.position, player.position);
+                if (distance <= senses.maxHearingDistance)
+                {
+                    hasOtherTargetsInRange = true;
+                    return;
+                }
+            }
+        }
+
+        
+        foreach (Transform npc in senses.npcTargets)
+        {
+            if (npc == null) continue;
+            NPCHealth health = npc.GetComponent<NPCHealth>();
+            if (health != null && !health.IsDead)
+            {
+                float distance = Vector3.Distance(transform.position, npc.position);
+                if (distance <= senses.maxHearingDistance)
+                {
+                    hasOtherTargetsInRange = true;
+                    return;
+                }
+            }
+        }
+
+        
+        if (senses.objectNoiseDetection != null && senses.objectNoiseDetection.HasNoisyObjectNearby())
+        {
+            hasOtherTargetsInRange = true;
         }
     }
 
@@ -224,155 +476,226 @@ public class EnemyBrain : MonoBehaviour
         currentState = State.Chasing;
     }
 
-    IEnumerator AttackWallRoutine(GameObject wall)
+    IEnumerator WakeUpQuietRoutine()
     {
-        if (wall == null)
-        {
-
-            currentState = State.Chasing;
-            yield break;
-        }
-
-
-
-        currentState = State.Attacking;
-        Vector3 wallPosition = wall.transform.position;
-
-        motor.MoveTo(wallPosition, walkSpeed, 1.2f);
-
-        float timer = 0f;
-        while (wall != null && Vector3.Distance(transform.position, wallPosition) > 1.8f && timer < 4f)
-        {
-            timer += Time.deltaTime;
-            visuals.UpdateAnimationState(false);
-            yield return null;
-        }
-
+        currentState = State.Transitioning;
         motor.Stop();
-        if (wall != null)
+        motor.SetAutoRotation(false);
+        visuals.UpdateAnimationState(true);
+
+        preInvestigatePosition = transform.position;
+        isInvestigatingObjectNoise = true;
+
+        
+        yield return StartCoroutine(InvestigateObjectRoutine());
+    }
+
+    IEnumerator InvestigateObjectRoutine()
+    {
+        currentState = State.Investigating;
+        isInvestigatingStanding = false; 
+        
+        investigationCoroutine = StartCoroutine(InvestigateObjectRoutineInternal());
+        yield return investigationCoroutine;
+    }
+
+    IEnumerator InvestigateObjectRoutineInternal()
+    {
+        Vector3 investigationPosition = senses.TargetPositionOfInterest;
+        if (senses.CurrentNoisyObject != null)
         {
-            motor.RotateTowards(wallPosition);
-            yield return new WaitForSeconds(0.2f);
+            investigationPosition = senses.CurrentNoisyObject.position;
         }
+        
+        motor.MoveTo(investigationPosition, crawlSpeed, 0.2f);
 
-
-
-        visuals.TriggerAttack(3);
-
-        float impactTimer = 0f;
-        while (!visuals.AnimImpactReceived && impactTimer < 2.5f)
+        float timeoutTimer = 0f;
+        while (motor.GetRemainingDistance() > 0.3f && timeoutTimer < 7.0f)
         {
-            impactTimer += Time.deltaTime;
-            yield return null;
-        }
-
-        if (wall != null)
-        {
-
-            TryDestroyWall(wall);
-
-            yield return new WaitForSeconds(0.3f);
-
+            timeoutTimer += Time.deltaTime;
+            visuals.UpdateAnimationState(true);
+            
+            
+            if (senses.CurrentNoisyObject == null || !senses.objectNoiseDetection.HasNoisyObjectNearby())
+            {
+                senses.ForgetTarget();
+            }
+            
+            
             if (senses.HasTargetOfInterest)
             {
-                motor.Stop();
-                yield return null;
-                motor.MoveTo(senses.TargetPositionOfInterest, walkSpeed, attackRange - 0.5f);
-
+                if (senses.CurrentPlayer != null || senses.CurrentNPCTarget != null)
+                {
+                    
+                    yield break;
+                }
+                else if (senses.CurrentNoisyObject != null)
+                {
+                    
+                    yield break;
+                }
             }
+            
+            yield return null;
+        }
+
+        
+        motor.Stop();
+        visuals.UpdateAnimationState(true);
+        visuals.SetInvestigatingMode(true);
+        
+        investigationTimer = 0f;
+        while (investigationTimer < investigationDuration)
+        {
+            investigationTimer += Time.deltaTime;
+            
+            
+            if (senses.HasTargetOfInterest)
+            {
+                visuals.SetInvestigatingMode(false);
+                yield break;
+            }
+            
+            yield return null;
+        }
+
+        
+        visuals.SetInvestigatingMode(false);
+        senses.ForgetTarget();
+        
+        if (isInvestigatingObjectNoise)
+        {
+            senses.IgnoreCurrentNoisyObjectFor(8f);
+            yield return StartCoroutine(ReturnToPreviousSpotRoutine());
         }
         else
         {
-
+            yield return StartCoroutine(ReturnToPatrolRoutine());
         }
 
-        float finishTimer = 0f;
-        while (!visuals.AnimFinishedReceived && finishTimer < 1.5f)
-        {
-            finishTimer += Time.deltaTime;
-            yield return null;
-        }
-
-        visuals.StopAttack();
-        senses.CurrentWallTarget = null;
-        currentState = State.Chasing;
-        yield return new WaitForSeconds(attackCooldown);
-
-
+        isInvestigatingObjectNoise = false;
+        isInvestigatingStanding = false;
     }
 
-    IEnumerator AttackTargetRoutine()
+    IEnumerator InvestigateRoutine(Vector3 targetPosition)
     {
-        bool hasCharacterTarget = senses.CurrentPlayer != null || senses.CurrentNPCTarget != null;
-        if (!hasCharacterTarget)
+        currentState = State.Investigating;
+        
+        
+        if (!isInvestigatingStanding)
         {
-            currentState = State.Chasing;
-            yield break;
+            isInvestigatingStanding = false; 
         }
-        Transform tgt = senses.CurrentNPCTarget != null ? senses.CurrentNPCTarget : senses.CurrentPlayer;
-        var pHealth = tgt != null ? tgt.GetComponent<PlayerHealth>() : null;
-        var nHealth = tgt != null ? tgt.GetComponent<NPCHealth>() : null;
-        if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
+        
+        investigationCoroutine = StartCoroutine(InvestigateRoutineInternal(targetPosition));
+        yield return investigationCoroutine;
+    }
+
+    IEnumerator InvestigateRoutineInternal(Vector3 targetPosition)
+    {
+        
+        float moveSpeed = isInvestigatingStanding ? walkSpeed : crawlSpeed;
+        motor.MoveTo(targetPosition, moveSpeed, 0.2f);
+
+        float timeoutTimer = 0f;
+        while (motor.GetRemainingDistance() > 0.3f && timeoutTimer < 7.0f)
         {
-            senses.ForgetTarget();
-            StartCoroutine(ReturnToPatrolRoutine());
-            yield break;
-        }
-        currentState = State.Attacking;
-        motor.Stop();
-        motor.RotateTowards(senses.TargetPositionOfInterest);
-
-        visuals.TriggerAttack(Random.Range(1, 4));
-
-        float safetyTimer = 0f;
-        bool impactHappened = false;
-
-        while (!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived && safetyTimer < 2.0f)
-        {
-            safetyTimer += Time.deltaTime;
-            if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
+            timeoutTimer += Time.deltaTime;
+            
+            visuals.UpdateAnimationState(!isInvestigatingStanding);
+            
+            
+            if (senses.HasTargetOfInterest)
             {
-                visuals.StopAttack();
-                senses.ForgetTarget();
-                StartCoroutine(ReturnToPatrolRoutine());
                 yield break;
             }
-            if (visuals.AnimImpactReceived) impactHappened = true;
+            
             yield return null;
         }
 
-        visuals.EnableRightHand();
-        visuals.EnableLeftHand();
-        yield return new WaitForSeconds(0.2f);
-        visuals.StopAttack();
-
-        if ((pHealth != null && !pHealth.IsDead) || (nHealth != null && !nHealth.IsDead))
+        
+        motor.Stop();
+        
+        visuals.UpdateAnimationState(!isInvestigatingStanding);
+        visuals.SetInvestigatingMode(true);
+        
+        investigationTimer = 0f;
+        while (investigationTimer < investigationDuration)
         {
-            if (impactHappened || visuals.AnimImpactReceived || visuals.AnimFinishedReceived)
+            investigationTimer += Time.deltaTime;
+            
+            
+            if (senses.HasTargetOfInterest)
             {
-                if (pHealth != null && !pHealth.IsDead) pHealth.TakeDamage(attackDamage);
-                if (nHealth != null && !nHealth.IsDead) nHealth.TakeDamage(attackDamage);
+                visuals.SetInvestigatingMode(false);
+                yield break;
             }
-        }
-
-        float finishTimer = 0f;
-        while (!visuals.AnimFinishedReceived && finishTimer < 1.5f)
-        {
-            finishTimer += Time.deltaTime;
+            
             yield return null;
         }
 
-        visuals.StopAttack();
-        if ((pHealth != null && pHealth.IsDead) || (nHealth != null && nHealth.IsDead))
-        {
-            senses.ForgetTarget();
-            StartCoroutine(ReturnToPatrolRoutine());
-            yield break;
-        }
-        currentState = State.Chasing;
-        yield return new WaitForSeconds(attackCooldown);
+        
+        visuals.SetInvestigatingMode(false);
+        senses.ForgetTarget();
+        yield return StartCoroutine(ReturnToPatrolRoutine());
+        
+        isInvestigatingStanding = false;
+    }
 
-        SelectClosestAliveTarget();
+    IEnumerator InvestigateAfterKillRoutine()
+    {
+        currentState = State.Investigating;
+        isInvestigatingStanding = false; 
+        
+        investigationCoroutine = StartCoroutine(InvestigateAfterKillRoutineInternal());
+        yield return investigationCoroutine;
+    }
+
+    IEnumerator InvestigateAfterKillRoutineInternal()
+    {
+        motor.Stop();
+        visuals.UpdateAnimationState(true);
+        visuals.SetInvestigatingMode(true);
+        
+        investigationTimer = 0f;
+        while (investigationTimer < investigationDuration)
+        {
+            investigationTimer += Time.deltaTime;
+            
+            
+            if (senses.HasTargetOfInterest)
+            {
+                visuals.SetInvestigatingMode(false);
+                yield break;
+            }
+            
+            yield return null;
+        }
+
+        
+        visuals.SetInvestigatingMode(false);
+        yield return StartCoroutine(ReturnToPatrolRoutine());
+        
+        isInvestigatingStanding = false;
+    }
+
+    IEnumerator ReturnToPreviousSpotRoutine()
+    {
+        currentState = State.Transitioning;
+        visuals.UpdateAnimationState(true);
+        motor.MoveTo(preInvestigatePosition, crawlSpeed, 0.2f);
+
+        float timer = 0f;
+        while (motor.GetRemainingDistance() > 0.3f && timer < 6f)
+        {
+            timer += Time.deltaTime;
+            visuals.UpdateAnimationState(true);
+            yield return null;
+        }
+
+        currentState = State.Patrol;
+        motor.SetAutoRotation(true);
+        GoToNextPatrolPoint();
     }
 
     IEnumerator ReturnToPatrolRoutine()
@@ -389,101 +712,73 @@ public class EnemyBrain : MonoBehaviour
         GoToNextPatrolPoint();
     }
 
-    IEnumerator InvestigateRoutine(Vector3 pos)
+    IEnumerator AttackTargetRoutine()
     {
-        currentState = State.Investigating;
-        motor.MoveTo(pos, investigationSpeed, 0.1f);
+        currentState = State.Attacking;
+        motor.Stop();
+        motor.RotateTowards(senses.TargetPositionOfInterest);
 
-        float timer = 0f;
-        while (timer < 6.0f)
+        visuals.TriggerAttack(Random.Range(1, 4));
+
+        yield return new WaitUntil(() => visuals.AnimImpactReceived || visuals.AnimFinishedReceived);
+
+        
+        Transform target = GetCurrentTarget();
+        if (target != null)
         {
-            timer += Time.deltaTime;
+            PlayerHealth pHealth = target.GetComponent<PlayerHealth>();
+            NPCHealth nHealth = target.GetComponent<NPCHealth>();
+            if (pHealth != null) pHealth.TakeDamage(attackDamage);
+            if (nHealth != null) nHealth.TakeDamage(attackDamage);
+        }
 
-            if (motor.GetRemainingDistance() > 0.15f)
-            {
-                visuals.UpdateAnimationState(true);
-                visuals.SetInvestigatingMode(false);
-            }
-            else
-            {
-                motor.Stop();
-                visuals.UpdateAnimationState(true);
-                yield return StartCoroutine(visuals.RunScanCycles(4));
-                break;
-            }
+        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
+        visuals.StopAttack();
+
+        currentState = State.Chasing;
+        yield return new WaitForSeconds(attackCooldown);
+    }
+
+    IEnumerator AttackWallRoutine(GameObject wall)
+    {
+        if (wall == null)
+        {
+            currentState = State.Chasing;
+            yield break;
+        }
+
+        currentState = State.Attacking;
+        motor.MoveTo(wall.transform.position, walkSpeed, 1.5f);
+
+        float waitTimer = 0f;
+        while (wall != null && Vector3.Distance(transform.position, wall.transform.position) > 1.8f && waitTimer < 3f)
+        {
+            waitTimer += Time.deltaTime;
+            visuals.UpdateAnimationState(false);
             yield return null;
         }
 
-        visuals.SetInvestigatingMode(false);
-        senses.ForgetTarget();
-        if (isInvestigatingObjectNoise)
-        {
-            senses.IgnoreCurrentNoisyObjectFor(8f);
-            StartCoroutine(ReturnToPreviousSpotRoutine());
-        }
-        else
-        {
-            StartCoroutine(ReturnToPatrolRoutine());
-        }
-        isInvestigatingObjectNoise = false;
-    }
-
-    void SelectClosestAliveTarget()
-    {
-        Transform best = null;
-        float bestDist = float.MaxValue;
-        bool isNPC = false;
-
-        void CheckList(Transform[] list, bool npcFlag)
-        {
-            if (list == null) return;
-            foreach (var t in list)
-            {
-                if (t == null) continue;
-                var ph = t.GetComponent<PlayerHealth>();
-                var nh = t.GetComponent<NPCHealth>();
-                if ((ph != null && ph.IsDead) || (nh != null && nh.IsDead)) continue;
-
-                float d = Vector3.Distance(transform.position, t.position);
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = t;
-                    isNPC = npcFlag;
-                }
-            }
-        }
-
-        CheckList(senses.playerTargets, false);
-        CheckList(senses.npcTargets, true);
-
-        if (best != null)
-        {
-            if (isNPC)
-            {
-                senses.SetNPCTarget(best);
-            }
-            else
-            {
-                senses.SetPlayerTarget(best);
-            }
-        }
-    }
-
-    IEnumerator PatrolWaitRoutine()
-    {
-        isWaitingAtPatrol = true;
         motor.Stop();
-        visuals.UpdateAnimationState(true);
-        yield return new WaitForSeconds(patrolWaitTime);
-        GoToNextPatrolPoint();
-        isWaitingAtPatrol = false;
+        if (wall != null)
+        {
+            motor.RotateTowards(wall.transform.position);
+            visuals.TriggerAttack(3);
+            yield return new WaitUntil(() => visuals.AnimImpactReceived);
+            TryDestroyWall(wall);
+        }
+
+        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
+        visuals.StopAttack();
+        senses.CurrentWallTarget = null;
+        currentState = State.Chasing;
     }
 
     void WakeUp()
     {
         hasAwakened = true;
         visuals.SetPassiveState(0);
+
+        currentState = State.Transitioning;
         if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
         {
             StartCoroutine(WakeUpQuietRoutine());
@@ -497,36 +792,85 @@ public class EnemyBrain : MonoBehaviour
     void GoToNextPatrolPoint()
     {
         if (patrolPoints.Length == 0) return;
+        motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.2f);
         patrolIndex = (patrolIndex + 1) % patrolPoints.Length;
-        motor.MoveTo(patrolPoints[patrolIndex].position, crawlSpeed, 0.1f);
     }
 
-    void TryDestroyWall(GameObject w)
+    IEnumerator PatrolWaitRoutine()
     {
-        if (w)
+        isWaitingAtPatrol = true;
+        motor.Stop();
+        visuals.UpdateAnimationState(true);
+        yield return new WaitForSeconds(patrolWaitTime);
+        GoToNextPatrolPoint();
+        isWaitingAtPatrol = false;
+    }
+
+    void SelectClosestAliveTarget()
+    {
+        Transform bestTarget = null;
+        float closestDistance = float.MaxValue;
+        bool isNPCFound = false;
+
+        
+        foreach (Transform npc in senses.npcTargets)
         {
-            var s = w.GetComponent<Wall_Destruction>();
-            if (s)
+            if (npc == null) continue;
+            NPCHealth health = npc.GetComponent<NPCHealth>();
+            if (health != null && !health.IsDead)
             {
-                if (!w.activeSelf) w.SetActive(true);
-                s.Explode(w.transform.position, transform.forward);
+                float distance = Vector3.Distance(transform.position, npc.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    bestTarget = npc;
+                    isNPCFound = true;
+                }
+            }
+        }
+
+        
+        foreach (Transform player in senses.playerTargets)
+        {
+            if (player == null) continue;
+            PlayerHealth health = player.GetComponent<PlayerHealth>();
+            if (health != null && !health.IsDead)
+            {
+                float distance = Vector3.Distance(transform.position, player.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    bestTarget = player;
+                    isNPCFound = false;
+                }
+            }
+        }
+
+        if (bestTarget != null)
+        {
+            if (isNPCFound) senses.SetNPCTarget(bestTarget);
+            else senses.SetPlayerTarget(bestTarget);
+        }
+    }
+
+    void TryDestroyWall(GameObject wall)
+    {
+        if (wall != null)
+        {
+            Wall_Destruction destructionScript = wall.GetComponent<Wall_Destruction>();
+            if (destructionScript != null)
+            {
+                destructionScript.Explode(wall.transform.position, transform.forward);
                 visuals.PlayWallBreakSound();
                 DialogueManager.ShowEnemyWallBreakDialogue();
-
-
-            }
-            else
-            {
-
             }
         }
     }
 
     void HandleDialogueFeedback()
     {
-        if (!senses.HasTargetOfInterest) return;
-        Transform currentTarget = senses.CurrentTarget;
-        if (currentTarget == null) return;
+        Transform target = GetCurrentTarget();
+        if (target == null) return;
 
         if (!hasShownFirstDetection)
         {
@@ -535,7 +879,7 @@ public class EnemyBrain : MonoBehaviour
         }
         else if (Time.time - lastReDetectionTime > 2.0f && currentState == State.Patrol)
         {
-            DialogueManager.ShowEnemyDetectedAgainDialogue(currentTarget.gameObject);
+            DialogueManager.ShowEnemyDetectedAgainDialogue(target.gameObject);
             lastReDetectionTime = Time.time;
         }
     }
@@ -549,34 +893,5 @@ public class EnemyBrain : MonoBehaviour
         StopAllCoroutines();
         if (cameraController) cameraController.StopTrackingEnemy();
         currentState = State.Dead;
-    }
-
-    IEnumerator WakeUpQuietRoutine()
-    {
-        currentState = State.Transitioning;
-        motor.Stop();
-        motor.SetAutoRotation(false);
-        visuals.UpdateAnimationState(true);
-        preInvestigatePosition = transform.position;
-        isInvestigatingObjectNoise = true;
-        Vector3 pos = senses.TargetPositionOfInterest;
-        StartCoroutine(InvestigateRoutine(pos));
-        yield return null;
-    }
-
-    IEnumerator ReturnToPreviousSpotRoutine()
-    {
-        currentState = State.Transitioning;
-        visuals.UpdateAnimationState(true);
-        motor.MoveTo(preInvestigatePosition, crawlSpeed, 0.1f);
-        float t = 0f;
-        while (motor.GetRemainingDistance() > 0.2f && t < 6f)
-        {
-            t += Time.deltaTime;
-            visuals.UpdateAnimationState(true);
-            yield return null;
-        }
-        currentState = State.Patrol;
-        motor.SetAutoRotation(true);
     }
 }
