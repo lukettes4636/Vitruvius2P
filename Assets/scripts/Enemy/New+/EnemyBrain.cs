@@ -56,8 +56,6 @@ public class EnemyBrain : MonoBehaviour
     private float investigationTimer = 0f;
     private bool hasOtherTargetsInRange = false;
     private bool isInvestigatingStanding = false; 
-    
-    private Coroutine activeTransitionCoroutine;
 
     public Transform GetCurrentTarget()
     {
@@ -116,20 +114,7 @@ public class EnemyBrain : MonoBehaviour
             return;
         }
 
-        if (currentState == State.Transitioning)
-        {
-            if (senses.HasTargetOfInterest)
-            {
-                if (activeTransitionCoroutine != null) StopCoroutine(activeTransitionCoroutine);
-                currentState = State.Chasing;
-            }
-            else
-            {
-                return;
-            }
-        }
-        
-        if (currentState == State.Attacking) return;
+        if (currentState == State.Transitioning || currentState == State.Attacking) return;
 
         switch (currentState)
         {
@@ -173,8 +158,7 @@ public class EnemyBrain : MonoBehaviour
                 }
 
                 
-                
-                senses.SetInterestPosition(senses.CurrentNoisyObject.position);
+                senses.TargetPositionOfInterest = senses.CurrentNoisyObject.position;
                 
                 motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 0.2f);
                 visuals.UpdateAnimationState(true);
@@ -242,7 +226,7 @@ public class EnemyBrain : MonoBehaviour
         
         if (senses.HasTargetOfInterest)
         {
-            
+            SelectClosestAliveTarget();
             
             
             if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
@@ -260,8 +244,7 @@ public class EnemyBrain : MonoBehaviour
                 }
 
                 
-                
-                senses.SetInterestPosition(senses.CurrentNoisyObject.position);
+                senses.TargetPositionOfInterest = senses.CurrentNoisyObject.position;
                 
                 motor.MoveTo(senses.TargetPositionOfInterest, crawlSpeed, 0.2f);
                 visuals.UpdateAnimationState(true);
@@ -298,33 +281,18 @@ public class EnemyBrain : MonoBehaviour
                     
                     if (playerNoise != null)
                     {
-                        
-                        isTargetMakingNoise = playerNoise.currentNoiseRadius > 0.1f;
+                        isTargetMakingNoise = playerNoise.currentNoiseRadius > playerNoise.idleNoiseRadius + 0.1f;
                     }
                     else if (npcNoise != null)
                     {
-                        isTargetMakingNoise = npcNoise.currentNoiseRadius > 0.1f;
+                        isTargetMakingNoise = npcNoise.currentNoiseRadius > npcNoise.idleNoiseRadius + 0.1f;
                     }
                     
                     
                     if (distanceToTarget <= attackRange && isTargetMakingNoise && !senses.CheckForWallInFront())
                     {
                         StartCoroutine(AttackTargetRoutine());
-                        return;
                     }
-                }
-            }
-
-            
-            
-            if (!motor.IsMoving && motor.GetRemainingDistance() <= (attackRange + 0.5f))
-            {
-                if (currentState != State.Investigating)
-                {
-                    
-                    Vector3 targetPos = senses.TargetPositionOfInterest;
-                    senses.ForgetTarget(); 
-                    StartCoroutine(InvestigateRoutine(targetPos));
                 }
             }
         }
@@ -340,7 +308,7 @@ public class EnemyBrain : MonoBehaviour
             {
                 
                 senses.ForgetTarget();
-                activeTransitionCoroutine = StartCoroutine(ReturnToPatrolRoutine());
+                StartCoroutine(ReturnToPatrolRoutine());
             }
         }
     }
@@ -355,12 +323,12 @@ public class EnemyBrain : MonoBehaviour
             
             if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
             {
-                activeTransitionCoroutine = StartCoroutine(WakeUpQuietRoutine());
+                StartCoroutine(WakeUpQuietRoutine());
             }
             else
             {
                 
-                activeTransitionCoroutine = StartCoroutine(WakeUpAndRoarRoutine());
+                StartCoroutine(WakeUpAndRoarRoutine());
             }
             return;
         }
@@ -432,32 +400,16 @@ public class EnemyBrain : MonoBehaviour
         visuals.SetInvestigatingMode(false);
         
         
-        
-        
-        
-        
         if (!isInvestigatingStanding)
         {
             visuals.TriggerGetUp();
-            float timeout = 2.5f;
-            float timer = 0f;
-            while (!visuals.AnimFinishedReceived && timer < timeout)
-            {
-                timer += Time.deltaTime;
-                yield return null;
-            }
+            yield return new WaitUntil(() => visuals.AnimFinishedReceived);
         }
         
         
         visuals.TriggerRoar();
         visuals.PlayRoarSound();
-        float roarTimeout = 3.0f;
-        float roarTimer = 0f;
-        while (!visuals.AnimFinishedReceived && roarTimer < roarTimeout)
-        {
-            roarTimer += Time.deltaTime;
-            yield return null;
-        }
+        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
         
         
         isInvestigatingStanding = true;
@@ -475,7 +427,8 @@ public class EnemyBrain : MonoBehaviour
             PlayerHealth health = player.GetComponent<PlayerHealth>();
             if (health != null && !health.IsDead)
             {
-                if (senses.IsTargetAudible(player))
+                float distance = Vector3.Distance(transform.position, player.position);
+                if (distance <= senses.maxHearingDistance)
                 {
                     hasOtherTargetsInRange = true;
                     return;
@@ -490,7 +443,8 @@ public class EnemyBrain : MonoBehaviour
             NPCHealth health = npc.GetComponent<NPCHealth>();
             if (health != null && !health.IsDead)
             {
-                if (senses.IsTargetAudible(npc))
+                float distance = Vector3.Distance(transform.position, npc.position);
+                if (distance <= senses.maxHearingDistance)
                 {
                     hasOtherTargetsInRange = true;
                     return;
@@ -766,13 +720,7 @@ public class EnemyBrain : MonoBehaviour
 
         visuals.TriggerAttack(Random.Range(1, 4));
 
-        float timeout = 2.0f; 
-        float timer = 0f;
-        while ((!visuals.AnimImpactReceived && !visuals.AnimFinishedReceived) && timer < timeout)
-        {
-            timer += Time.deltaTime;
-            yield return null;
-        }
+        yield return new WaitUntil(() => visuals.AnimImpactReceived || visuals.AnimFinishedReceived);
 
         
         Transform target = GetCurrentTarget();
@@ -784,13 +732,7 @@ public class EnemyBrain : MonoBehaviour
             if (nHealth != null) nHealth.TakeDamage(attackDamage);
         }
 
-        float endTimeout = 1.5f;
-        float endTimer = 0f;
-        while (!visuals.AnimFinishedReceived && endTimer < endTimeout)
-        {
-            endTimer += Time.deltaTime;
-            yield return null;
-        }
+        yield return new WaitUntil(() => visuals.AnimFinishedReceived);
         visuals.StopAttack();
 
         currentState = State.Chasing;
@@ -827,7 +769,7 @@ public class EnemyBrain : MonoBehaviour
 
         yield return new WaitUntil(() => visuals.AnimFinishedReceived);
         visuals.StopAttack();
-        senses.SetWallTarget(null);
+        senses.CurrentWallTarget = null;
         currentState = State.Chasing;
     }
 
@@ -839,11 +781,11 @@ public class EnemyBrain : MonoBehaviour
         currentState = State.Transitioning;
         if (senses.CurrentNoisyObject != null && senses.CurrentPlayer == null && senses.CurrentNPCTarget == null)
         {
-            activeTransitionCoroutine = StartCoroutine(WakeUpQuietRoutine());
+            StartCoroutine(WakeUpQuietRoutine());
         }
         else
         {
-            activeTransitionCoroutine = StartCoroutine(WakeUpAndRoarRoutine());
+            StartCoroutine(WakeUpAndRoarRoutine());
         }
     }
 

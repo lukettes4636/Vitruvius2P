@@ -1,4 +1,4 @@
-// This shader is converted from 
+﻿// This shader is converted from 
 // Heartfelt(https://www.shadertoy.com/view/ltffzl) - by Martijn Steinrucken aka BigWings - 2017
 // countfrolic@gmail.com
 // License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
@@ -45,8 +45,8 @@ Shader "Custom/Raindrop" {
 			float2 DropLayer2(float2 uv, float t) {
 				float2 UV = uv;
 
-				uv.y += t*0.75;
-				float2 a = float2(3., 1.);  // Reducido 50% de 6 a 3
+				uv.y += t*0.5; // Reduced fall speed for more natural movement
+				float2 a = float2(6., 1.) * 0.19; // Further reduced by 200% (0.56 / 3 = ~0.19)
 				float2 grid = a*2.;
 				float2 id = floor(uv*grid);
 
@@ -61,28 +61,28 @@ Shader "Custom/Raindrop" {
 
 				float y = UV.y*20.;
 				float wiggle = sin(y + sin(y));
-				x += wiggle*(.5 - abs(x))*(n.z - .5);
-				x *= .7;
+				x += wiggle*(.5 - abs(x))*(n.z - .5) * 0.5; // Reduced wiggle variation by 50%
+				x *= .8; // Reduced variation from 0.7 to 0.8
 				float ti = frac(t + n.z);
-				y = (Saw(.85, ti) - .5)*.9 + .5;
+				y = Saw(.85, ti)*0.7 + 0.3; // Only downward movement, no upward variation
 				float2 p = float2(x, y);
 
 				float d = length((st - p)*a.yx);
 
-				float mainDrop = S(.2, .0, d);  // Reducido de .4 a .2 para gotas más pequeñas
+				float mainDrop = S(.075, .0, d); // Further reduced by 200% (0.224 / 3 = ~0.075)
 
 				float r = sqrt(S(1., y, st.y));
 				float cd = abs(st.x - x);
-				float trail = S(.23*r, .15*r*r, cd);
-				float trailFront = S(-.02, .02, st.y - y);
+				float trail = S(.043*r, .029*r*r, cd); // Further reduced by 200%
+				float trailFront = S(-.004, .002, st.y - y); // Further reduced trail front
 				trail *= trailFront*r*r;
 
 				y = UV.y;
-				float trail2 = S(.2*r, .0, cd);
+				float trail2 = S(.037*r, .0, cd); // Further reduced by 200%
 				float droplets = max(0., (sin(y*(1. - y)*120.) - st.y))*trail2*trailFront*n.z;
 				y = frac(y*10.) + (st.y - .5);
 				float dd = length(st - float2(x, y));
-				droplets = S(.3, 0., dd);
+				droplets = S(.056, 0., dd); // Further reduced by 200%
 				float m = mainDrop + droplets*r*trailFront;
 
 				//m += st.x>a.y*.45 || st.y>a.x*.165 ? 1.2 : 0.;
@@ -95,18 +95,18 @@ Shader "Custom/Raindrop" {
 				float2 id = floor(uv);
 				uv = frac(uv) - .5;
 				float3 n = N13(id.x*107.45 + id.y*3543.654);
-				float2 p = (n.xy - .5)*.7;
+				float2 p = (n.xy - .5)*0.5; // Reduced position variation from 0.7 to 0.5
 				float d = length(uv - p);
 
 				float fade = Saw(.025, frac(t + n.z));
-				float c = S(.3, 0., d)*frac(n.z*10.)*fade;
+				float c = S(.056, 0., d)*frac(n.z*10.)*fade; // Further reduced by 200%
 				return c;
 			}
 
 			float2 Drops(float2 uv, float t, float l0, float l1, float l2) {
 				float s = StaticDrops(uv, t)*l0;
 				float2 m1 = DropLayer2(uv, t)*l1;
-				float2 m2 = DropLayer2(uv*1.25, t)*l2;  // Reducido de 1.85 a 1.25 para mantener proporción
+				float2 m2 = DropLayer2(uv*1.2, t)*l2*0.3; // Further reduced scale and intensity for largest drops
 
 				float c = s + m1.x + m2.x;
 				c = S(.3, 1., c);
@@ -174,7 +174,7 @@ Shader "Custom/Raindrop" {
 
 				float staticDrops = S(-.5, 1., rainAmount)*2.;
 				float layer1 = S(.25, .75, rainAmount);
-				float layer2 = S(.0, .5, rainAmount);
+				float layer2 = S(.0, .5, rainAmount) * 0.6; // Reduced layer2 intensity by 40%
 
 
 				float2 c = Drops(uv, t, staticDrops, layer1, layer2);

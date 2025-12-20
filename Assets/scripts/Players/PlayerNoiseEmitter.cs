@@ -9,14 +9,10 @@ public class PlayerNoiseEmitter : MonoBehaviour
 {
     [Header("Radios de ruido (metros)")]
     [Tooltip("Radio de ruido constante en idle (SIEMPRE activo para deteccion cercana)")]
-    public float idleNoiseRadius = 0.5f; 
-    public float walkNoiseRadius = 8f;
+    public float idleNoiseRadius = 2.5f; 
+    public float walkNoiseRadius = 3f;
     public float crouchNoiseRadius = 2f;
-    public float runNoiseRadius = 15f;
-
-    [Header("Thresholds de Velocidad")]
-    [Tooltip("Velocidad minima para considerar que esta corriendo (fallback)")]
-    public float runSpeedThreshold = 4f;
+    public float runNoiseRadius = 6f;
 
     [Header("Visual Feedback (VFX)")]
     public VisualEffect noiseVFX;
@@ -165,22 +161,20 @@ void CalculateLogicRadius()
                 isRunning = (bool)isRunningField.GetValue(activeMovementScript);
                 isCrouching = (bool)isCrouchingField.GetValue(activeMovementScript);
             }
-            catch (System.Exception)
+            catch (System.Exception ex)
             {
                 reflectionInitialized = false;
             }
         }
 
         
-        
         if (!reflectionInitialized)
         {
-            float speed = controller.velocity.magnitude;
-            isMoving = speed > 0.1f;
-            isRunning = speed > runSpeedThreshold;
+            isMoving = controller.velocity.magnitude > 0.1f;
         }
 
-        float targetRadius = idleNoiseRadius;
+        
+        float targetRadius = idleNoiseRadius; 
 
         if (isMoving)
         {
